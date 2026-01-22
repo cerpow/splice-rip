@@ -15,7 +15,7 @@ A simple script to unlock the "Download" button in Splice Desktop, allowing you 
      ```
    - **Windows (not tested)**: Use Git Bash (or similar) and point to your versioned app folder:
      ```bash
-     bash splice-patch.sh "/c/Users/YOUR_NAME/AppData/Local/Splice/app-x.x.x"
+     bash splice-patch.sh "C:/Users/YOUR_USERNAME/AppData/Local/Splice/app-x.x.x"
      ```
    - **Manual/Drag & Drop**: Type `bash `, drag `splice-patch.sh`, press Space, drag your **Splice.app** (Mac) or the **app-x.x.x** folder (Windows - not tested), then press Enter.
 
