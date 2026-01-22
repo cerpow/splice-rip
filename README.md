@@ -1,7 +1,5 @@
 # Mac Splice App Loop Extractor Script
 
-**Tags: hack, crack, torrent, downloader, bypass**
-
 A simple script to unlock the "Download" button in Splice Desktop, allowing you to save sounds locally.
 
 ## 🚀 How to use
@@ -41,6 +39,8 @@ A simple script to unlock the "Download" button in Splice Desktop, allowing you 
 - **Copyright Compliance**: This tool is for educational purposes only. You are solely responsible for ensuring that your use of this software complies with Splice's terms of service and all applicable copyright laws.
 - **Support Creators**: Please support artists and sound designers by purchasing credits and subscribing to Splice. This tool should not be used to bypass the need to support the creative community.
 - **No Warranty**: This software is provided "as is", without warranty of any kind.
+
+_Keywords: hack, crack, torrent alternative, downloader, local extraction bypass._
 
 ## 📄 Script Source
 
