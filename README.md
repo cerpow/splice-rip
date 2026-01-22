@@ -4,30 +4,26 @@ A simple script to unlock the "Download" button in Splice Desktop, allowing you 
 
 ## 🚀 How to use
 
-1. **Install Node.js**: Ensure you have Node.js installed on your Mac. Check with `node -v`.
-2. **Download Splice**: Make sure you have the latest [Splice Desktop App](https://splice.com/download) installed.
-3. **Open Terminal** in the folder containing `splice-patch.sh`.
-4. **Run the script**:
-   - **Option A (Command Line)**:
-     ```bash
-     bash splice-patch.sh /Applications/Splice.app
-     ```
-   - **Option B (Drag & Drop)**:
-     1. Open Terminal.
-     2. Type `bash ` (with a space).
-     3. Drag and drop `splice-patch.sh` into the window.
-     4. Press Space again.
-     5. Drag and drop your **Splice.app** (usually in Applications) into the window.
-     6. Press **Enter**.
+### 1. Installation
 
-## 🛠 What it does
+1. **Install Node.js**: Ensure you have Node.js installed on your Mac (`node -v`).
+2. **Download Splice**: Ensure the latest [Splice Desktop App](https://splice.com/download) is installed.
+3. **Run the Patcher**:
+   - **Option A (Terminal)**: `bash splice-patch.sh /Applications/Splice.app`
+   - **Option B (Drag & Drop)**: Type `bash `, drag `splice-patch.sh`, press Space, drag `Splice.app`, then press Enter.
 
-- **Backs up**: Renames your original `app.asar` to `app.asar.bak`.
-- **Unpacks**: Uses the `asar` utility to extract Splice's source code.
-- **Injects**: Adds a custom script to the app that:
-  - Captures audio data when you play a sound.
-  - Adds "Download" and "Get Pack" buttons to the UI.
-  - Enables a "Console" button to toggle DevTools.
+### 2. Usage
+
+1. **Open Splice App**.
+2. **Play a Sample**: Click on any loop or sample to start playback.
+3. **Download**: A blue **"Download"** button will appear on the bottom right. Click it to save the sample.
+4. **Bulk Download**: If you are on a Pack or Collection page, a **"Get Pack"** or **"Get Collection"** button will be available to automate capturing all samples on the current page.
+
+## 🛠 Technical Details
+
+- **Backup**: Automatically renames `app.asar` to `app.asar.bak`.
+- **Injection**: Patches the app to capture audio streams and add UI controls.
+- **DevTools**: Adds a hidden button to toggle Electron DevTools for debugging.
 
 ## 📝 Patch Description & Limitations
 
