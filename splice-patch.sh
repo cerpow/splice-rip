@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Splice.com App - Sound Extractor (macOS & Windows)
+# Splice.com App - Sound Extractor
 # This script injects the Audio Spy download functionality into Splice Desktop.
 
 set -e

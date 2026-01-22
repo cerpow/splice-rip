@@ -1,4 +1,4 @@
-# Splice.com App - Sound Extractor (macOS & Windows)
+# Splice.com App - Sound Extractor
 
 A simple script to unlock the "Download" button in Splice Desktop, allowing you to save sounds locally.
 
