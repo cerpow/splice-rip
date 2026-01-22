@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Splice.com App - Sound Extractor (macOS)
+# Splice.com App - Sound Extractor (macOS & Windows)
 # This script injects the Audio Spy download functionality into Splice Desktop.
 
 set -e
@@ -12,21 +12,37 @@ CYAN='\033[0;36m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo -e "${CYAN}--- Splice.com App - Sound Extractor (macOS) ---${NC}"
+echo -e "${CYAN}--- Splice.com App - Sound Extractor ---${NC}"
 
 # Check for path argument
 if [ -z "$1" ]; then
-    echo -e "${YELLOW}Usage: drag Splice.app here and press Enter${NC}"
-    read -p "Path to Splice.app: " SPLICE_PATH
+    echo -e "${YELLOW}Usage: drag Splice.app (Mac) or the Splice installation folder (Windows) here and press Enter${NC}"
+    read -p "Path: " TARGET_PATH
 else
-    SPLICE_PATH="$1"
+    TARGET_PATH="$1"
 fi
 
-# Clean up path (remove trailing slashes, handle spaces)
-SPLICE_PATH="${SPLICE_PATH%/}"
-# If it's a directory, check for the actual app structure
-if [[ "$SPLICE_PATH" != *.app ]]; then
-    echo -e "${RED}Error: Please provide a path to Splice.app${NC}"
+# Clean up path
+TARGET_PATH="${TARGET_PATH%/}"
+
+# Determine Resources Path based on OS/Folder structure
+if [[ "$TARGET_PATH" == *.app ]]; then
+    # Mac Bundle
+    RESOURCES_PATH="$TARGET_PATH/Contents/Resources"
+    echo -e "${CYAN}Detected macOS structure...${NC}"
+elif [ -d "$TARGET_PATH/resources" ]; then
+    # Windows/Linux standard structure
+    RESOURCES_PATH="$TARGET_PATH/resources"
+    echo -e "${CYAN}Detected Windows/Generic structure...${NC}"
+elif [ -f "$TARGET_PATH/app.asar" ]; then
+    # Path to resources folder itself
+    RESOURCES_PATH="$TARGET_PATH"
+    echo -e "${CYAN}Detected Resources folder...${NC}"
+else
+    echo -e "${RED}Error: Could not find app.asar in $TARGET_PATH${NC}"
+    echo -e "${YELLOW}Mac: Provide the Splice.app folder.${NC}"
+    echo -e "${YELLOW}Windows: Provide the folder containing 'resources/app.asar'${NC}"
+    echo -e "${YELLOW}(Usually: %LocalAppData%\\Splice\\app-[version])${NC}"
     exit 1
 fi
 
@@ -102,8 +118,8 @@ try {
 	});
 } catch (e) {}
 EOF
-        # Remove 'use strict'; from the start of the original file if it exists to avoid duplication
-        sed -i '' "s/'use strict';//" "$INDEX_JS" || sed -i "s/'use strict';//" "$INDEX_JS"
+        # Use Node for portable 'use strict' removal to avoid sed -i differences
+        node -e "const fs = require('fs'); const p = process.argv[1]; let c = fs.readFileSync(p, 'utf8'); fs.writeFileSync(p, c.replace(/'use strict';/, ''));" "$INDEX_JS"
         cat "$INDEX_JS" >> index.js.tmp
         mv index.js.tmp "$INDEX_JS"
         echo -e "${GREEN}✓ index.js patched${NC}"
@@ -419,8 +435,8 @@ if [ -f "$INDEX_HTML" ]; then
 			};
 		</script>
 EOF
-        # Insert script after <head>
-        sed -i '' '/<head>/r script.tmp' "$INDEX_HTML" || sed -i '/<head>/r script.tmp' "$INDEX_HTML"
+        # Insert script after <head> using node for portability
+        node -e "const fs = require('fs'); const script = fs.readFileSync('script.tmp', 'utf8'); const p = process.argv[1]; let html = fs.readFileSync(p, 'utf8'); fs.writeFileSync(p, html.replace('<head>', '<head>\n' + script));" "$INDEX_HTML"
         rm script.tmp
         echo -e "${GREEN}✓ index.html patched${NC}"
     fi

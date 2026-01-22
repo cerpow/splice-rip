@@ -1,4 +1,4 @@
-# Splice.com App - Sound Extractor (macOS)
+# Splice.com App - Sound Extractor (macOS & Windows)
 
 A simple script to unlock the "Download" button in Splice Desktop, allowing you to save sounds locally.
 
@@ -9,13 +9,15 @@ A simple script to unlock the "Download" button in Splice Desktop, allowing you 
 1. **Install Node.js**: Ensure you have Node.js installed on your Mac (`node -v`).
 2. **Download Splice**: Ensure the latest [Splice Desktop App](https://splice.com/download) is installed.
 3. **Run the Patcher**:
-   - **Run via terminal**:
+   - **macOS**:
      ```bash
      bash splice-patch.sh /Applications/Splice.app
      ```
-   - **Or run manually**:  
-     Type `bash `, drag `splice-patch.sh`, press Space, drag `Splice.app`, then press Enter.  
-     _Example:_ `bash /path/to/splice-patch.sh /Applications/Splice.app`
+   - **Windows (not tested)**: Use Git Bash (or similar) and point to your versioned app folder:
+     ```bash
+     bash splice-patch.sh "/c/Users/YOUR_NAME/AppData/Local/Splice/app-x.x.x"
+     ```
+   - **Manual/Drag & Drop**: Type `bash `, drag `splice-patch.sh`, press Space, drag your **Splice.app** (Mac) or the **app-x.x.x** folder (Windows - not tested), then press Enter.
 
 ### 2. Usage
 
