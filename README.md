@@ -9,8 +9,13 @@ A simple script to unlock the "Download" button in Splice Desktop, allowing you 
 1. **Install Node.js**: Ensure you have Node.js installed on your Mac (`node -v`).
 2. **Download Splice**: Ensure the latest [Splice Desktop App](https://splice.com/download) is installed.
 3. **Run the Patcher**:
-   - **Option A (Terminal)**: `bash splice-patch.sh /Applications/Splice.app`
-   - **Option B (Drag & Drop)**: Type `bash `, drag `splice-patch.sh`, press Space, drag `Splice.app`, then press Enter.
+   - **Option A (Terminal):**
+
+```bash
+bash splice-patch.sh /Applications/Splice.app
+```
+
+- **Option B (Drag & Drop):** Type `bash `, drag `splice-patch.sh`, press Space, drag `Splice.app`, then press Enter. _Example:_ `bash /path/to/splice-patch.sh /Applications/Splice.app`
 
 ### 2. Usage
 
