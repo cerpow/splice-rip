@@ -1,0 +1,6 @@
+.DS_Store
+Splice.app/
+*.bak
+*.inactive
+*.tmp
+node_modules/
