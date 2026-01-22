@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Mac Splice App - Loop Extractor Script
+# Splice.com App - Sound Extractor (macOS)
 # This script injects the Audio Spy download functionality into Splice Desktop.
 
 set -e
@@ -12,7 +12,7 @@ CYAN='\033[0;36m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo -e "${CYAN}--- Mac Splice App - Loop Extractor ---${NC}"
+echo -e "${CYAN}--- Splice.com App - Sound Extractor (macOS) ---${NC}"
 
 # Check for path argument
 if [ -z "$1" ]; then

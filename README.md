@@ -1,4 +1,4 @@
-# Mac Splice App Loop Extractor Script
+# Splice.com App - Sound Extractor (macOS)
 
 A simple script to unlock the "Download" button in Splice Desktop, allowing you to save sounds locally.
 
