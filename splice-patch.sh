@@ -46,7 +46,6 @@ else
     exit 1
 fi
 
-RESOURCES_PATH="$SPLICE_PATH/Contents/Resources"
 ASAR_FILE="$RESOURCES_PATH/app.asar"
 UNPACKED_PATH="$RESOURCES_PATH/app"
 
