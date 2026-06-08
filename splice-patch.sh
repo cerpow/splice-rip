@@ -154,7 +154,7 @@ if [ -f "$INDEX_HTML" ]; then
         min-width: 14px;
     }
     
-    #splice-spy-btn {
+    .spy-btn-class {
         transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease, width 0.3s ease, background-color 0.2s;
         transform: scale(0.7); 
         opacity: 0;
@@ -177,26 +177,26 @@ if [ -f "$INDEX_HTML" ]; then
         border-radius: 5px;
     }
     
-    #splice-spy-btn span { opacity: 1; transition: opacity 0.2s; }
-    #splice-spy-btn:hover span { opacity: 0.6; }
-    #splice-spy-btn svg { opacity: 0.7; transition: opacity 0.2s; }
-    #splice-spy-btn:hover svg { opacity: 0.4; }
+    .spy-btn-class span { opacity: 1; transition: opacity 0.2s; }
+    .spy-btn-class:hover span { opacity: 0.6; }
+    .spy-btn-class svg { opacity: 0.7; transition: opacity 0.2s; }
+    .spy-btn-class:hover svg { opacity: 0.4; }
     
-    #splice-spy-btn.visible {
+    .spy-btn-class.visible {
         transform: scale(1);
         opacity: 1;
         pointer-events: auto;
         display: flex;
     }
-    #splice-spy-btn.visible.loading { width: 32px; padding: 0; opacity: 0.9; }
-    #splice-spy-btn.ready { width: auto; }
+    .spy-btn-class.visible.loading { width: 32px; padding: 0; opacity: 0.9; }
+    .spy-btn-class.ready { width: auto; }
     
-    #splice-spy-btn .spy-spinner { display: none; margin: 0; }
-    #splice-spy-btn.loading .spy-spinner { display: block; }
-    #splice-spy-btn.loading svg, #splice-spy-btn.loading span { display: none; }
+    .spy-btn-class .spy-spinner { display: none; margin: 0; }
+    .spy-btn-class.loading .spy-spinner { display: block; }
+    .spy-btn-class.loading svg, .spy-btn-class.loading span { display: none; }
 
     .spy-d-none { display: none !important; }
-    #splice-spy-btn.hidden-by-pack {
+    .spy-btn-class.hidden-by-pack {
         width: 0 !important;
         padding: 0 !important;
         opacity: 0 !important;
@@ -238,38 +238,43 @@ if [ -f "$INDEX_HTML" ]; then
 			document.head.appendChild(styleEl);
 
 			const SpyState = { HIDDEN: 'hidden', LOADING: 'loading', READY: 'ready' };
-			window.spyData = { state: SpyState.HIDDEN, buffer: null, ext: null, hasFocus: false, lastFocusedRow: null };
+			window.spyData = { state: SpyState.HIDDEN, buffer: null, audioBuffer: null, ext: null, hasFocus: false, lastFocusedRow: null };
 
 			function renderButton() {
 				const btn = document.getElementById('splice-spy-btn');
+				const btnWav = document.getElementById('splice-spy-btn-wav');
 				const btnGet = document.getElementById('splice-get-pack-btn');
 				if (!btn) return;
 				const { state, hasFocus, ext } = window.spyData;
 				const shouldShow = hasFocus && state !== SpyState.HIDDEN;
 				const isPackRunning = btnGet && btnGet.classList.contains('loading');
+				
+				const btns = [btn, btnWav].filter(Boolean);
 
 				if (!shouldShow || isPackRunning) {
-					btn.classList.remove('visible');
-					if (isPackRunning) btn.classList.add('hidden-by-pack');
-					else btn.classList.remove('hidden-by-pack');
-					setTimeout(() => { if (!btn.classList.contains('visible')) btn.classList.add('spy-d-none'); }, 300);
+					btns.forEach(b => b.classList.remove('visible'));
+					if (isPackRunning) btns.forEach(b => b.classList.add('hidden-by-pack'));
+					else btns.forEach(b => b.classList.remove('hidden-by-pack'));
+					setTimeout(() => { btns.forEach(b => { if (!b.classList.contains('visible')) b.classList.add('spy-d-none'); }); }, 300);
 					return;
 				}
 
-				btn.classList.remove('hidden-by-pack', 'spy-d-none');
-				void btn.offsetWidth;
-				btn.classList.add('visible');
+				btns.forEach(b => {
+					b.classList.remove('hidden-by-pack', 'spy-d-none');
+					void b.offsetWidth;
+					b.classList.add('visible');
 
-				if (state === SpyState.LOADING) btn.classList.add('loading');
-				else if (state === SpyState.READY) {
-					btn.classList.remove('loading');
-					btn.title = `Download ${ext ? ext.toUpperCase() : ''}`;
-				}
+					if (state === SpyState.LOADING) b.classList.add('loading');
+					else if (state === SpyState.READY) {
+						b.classList.remove('loading');
+						b.title = `Download ${ext ? ext.toUpperCase() : ''}`;
+					}
+				});
 			}
 
 			function updateState(newState, data = null) {
 				if (newState) window.spyData.state = newState;
-				if (data) { window.spyData.buffer = data.buffer; window.spyData.ext = data.ext; }
+				if (data) { window.spyData.buffer = data.buffer; window.spyData.audioBuffer = data.audioBuffer; window.spyData.ext = data.ext; }
 				renderButton();
 			}
 
@@ -375,6 +380,72 @@ if [ -f "$INDEX_HTML" ]; then
 				await ipcRenderer.invoke('antigravity-save-file', customFilename || 'audio.mp3', window.spyData.buffer);
 			};
 
+			function audioBufferToWav(buffer) {
+				const numChannels = buffer.numberOfChannels;
+				const sampleRate = buffer.sampleRate;
+				const format = 1; // PCM
+				const bitDepth = 16;
+				
+				let result;
+				if (numChannels === 2) {
+					const channelData0 = buffer.getChannelData(0);
+					const channelData1 = buffer.getChannelData(1);
+					const length = channelData0.length * 4;
+					result = new Float32Array(length / 2);
+					for (let i = 0; i < channelData0.length; i++) {
+						result[i * 2] = channelData0[i];
+						result[i * 2 + 1] = channelData1[i];
+					}
+				} else {
+					result = buffer.getChannelData(0);
+				}
+				
+				const bytesPerSample = bitDepth / 8;
+				const blockAlign = numChannels * bytesPerSample;
+				const wavBuffer = new ArrayBuffer(44 + result.length * bytesPerSample);
+				const view = new DataView(wavBuffer);
+				
+				function writeString(view, offset, string) {
+					for (let i = 0; i < string.length; i++) {
+						view.setUint8(offset + i, string.charCodeAt(i));
+					}
+				}
+				
+				writeString(view, 0, 'RIFF');
+				view.setUint32(4, 36 + result.length * bytesPerSample, true);
+				writeString(view, 8, 'WAVE');
+				writeString(view, 12, 'fmt ');
+				view.setUint32(16, 16, true);
+				view.setUint16(20, format, true);
+				view.setUint16(22, numChannels, true);
+				view.setUint32(24, sampleRate, true);
+				view.setUint32(28, sampleRate * blockAlign, true);
+				view.setUint16(32, blockAlign, true);
+				view.setUint16(34, bitDepth, true);
+				writeString(view, 36, 'data');
+				view.setUint32(40, result.length * bytesPerSample, true);
+				
+				let offset = 44;
+				for (let i = 0; i < result.length; i++, offset += bytesPerSample) {
+					let s = Math.max(-1, Math.min(1, result[i]));
+					view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+				}
+				return wavBuffer;
+			}
+
+			window.downloadLastAudioWav = async function(customFilename = null) {
+				if (!customFilename) customFilename = window.spyData.lastClickedFilename;
+				if (!window.spyData.audioBuffer) return;
+				
+				const wavBuffer = audioBufferToWav(window.spyData.audioBuffer);
+				const { ipcRenderer } = require('electron');
+				let filename = (customFilename || 'audio.mp3').replace(/\.mp3$/, '') + '.wav';
+				await ipcRenderer.invoke('antigravity-save-file', filename, wavBuffer);
+				
+				const btn = document.getElementById('splice-spy-btn-wav');
+				if (btn) { const old = btn.innerHTML; btn.innerHTML = '<span>Saved!</span>'; setTimeout(() => btn.innerHTML = old, 2000); }
+			};
+
 			function injectButton() {
 				if (document.getElementById('splice-spy-btn')) return;
 				const container = document.createElement('div');
@@ -390,16 +461,24 @@ if [ -f "$INDEX_HTML" ]; then
 				btnGetPack.id = 'splice-get-pack-btn';
 				btnGetPack.onclick = () => window.getPack();
 
+				const btnWav = document.createElement('button');
+				btnWav.id = 'splice-spy-btn-wav';
+				btnWav.className = 'spy-btn-class';
+				btnWav.style.backgroundColor = '#8B5CF6'; // Purple for WAV
+				btnWav.innerHTML = `${ICON_DOWNLOAD} <span>WAV</span> <div class="spy-spinner"></div>`;
+				btnWav.onclick = () => window.downloadLastAudioWav();
+
 				const btn = document.createElement('button');
 				btn.id = 'splice-spy-btn';
-				btn.innerHTML = `${ICON_DOWNLOAD} <span>Download</span> <div class="spy-spinner"></div>`;
+				btn.className = 'spy-btn-class';
+				btn.innerHTML = `${ICON_DOWNLOAD} <span>MP3</span> <div class="spy-spinner"></div>`;
 				btn.onclick = () => window.downloadLastAudio();
 
 				const wrapper = document.createElement('div');
 				wrapper.className = 'splice-get-pack-btn-wrapper';
 				wrapper.appendChild(btnGetPack);
 
-				container.append(wrapper, btn, infoBtn);
+				container.append(wrapper, btn, btnWav, infoBtn);
 				document.body.appendChild(container);
 
 				require('electron').ipcRenderer.on('antigravity-devtools-state', (e, open) => {
@@ -429,7 +508,7 @@ if [ -f "$INDEX_HTML" ]; then
 
 			const originalStart = window.AudioBufferSourceNode.prototype.start;
 			window.AudioBufferSourceNode.prototype.start = function(...args) {
-				if (this.buffer?._spyOriginalData) updateState(SpyState.READY, { buffer: this.buffer._spyOriginalData });
+				if (this.buffer?._spyOriginalData) updateState(SpyState.READY, { buffer: this.buffer._spyOriginalData, audioBuffer: this.buffer });
 				return originalStart.apply(this, args);
 			};
 		</script>
