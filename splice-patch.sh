@@ -174,8 +174,8 @@ fs.writeFileSync(p, html);
     # We'll insert our script right after <head>
     # Prepare the script content
     cat << 'EOF' > script.tmp
-	<script>
-			console.log('%c[Spy] Audio Spy Injected v17 (Get Pack label)', 'color: cyan; font-size: 20px; font-weight: bold;');
+<script>
+			console.log('%c[Spy] Audio Spy Injected v22 (No double .wav)', 'color: cyan; font-size: 20px; font-weight: bold;');
 
 			const ICON_DOWNLOAD = `<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><use xlink:href="#icon-download"></use></svg>`;
 			const ICON_CHEVRON_UP = `<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M5 2.5L9 7H1L5 2.5z"/></svg>`;
@@ -392,24 +392,31 @@ fs.writeFileSync(p, html);
 			document.head.appendChild(styleEl);
 
 			const SpyState = { HIDDEN: 'hidden', LOADING: 'loading', READY: 'ready' };
-			window.spyData = { state: SpyState.HIDDEN, buffer: null, audioBuffer: null, ext: null, hasFocus: false, lastFocusedRow: null };
+			window.spyData = {
+				state: SpyState.HIDDEN, buffer: null, audioBuffer: null, ext: null,
+				hasFocus: false, lastFocusedRow: null,
+				assetType: null, fileBuffer: null, fileName: null, assetSourceUrl: null
+			};
+			window.spyAssetCache = new Map(); // name/uuid -> asset metadata from GraphQL
 
 			function renderButton() {
 				const btn = document.getElementById('splice-spy-btn');
 				const btnWav = document.getElementById('splice-spy-btn-wav');
 				const btnGet = document.getElementById('splice-get-pack-btn');
 				if (!btn) return;
-				const { state, hasFocus, ext, audioBuffer, buffer } = window.spyData;
-				const shouldShow = hasFocus && state !== SpyState.HIDDEN;
+				const { state, hasFocus, ext, audioBuffer, buffer, fileBuffer, assetSourceUrl, assetType } = window.spyData;
+				const fileAvailable = !!(fileBuffer || assetSourceUrl);
+				const shouldShow = hasFocus && state !== SpyState.HIDDEN && !shouldHideDownloadsForPresets();
 				const isPackRunning = btnGet && (btnGet.classList.contains('loading') || btnGet.classList.contains('success'));
 				const allBtns = [btn, btnWav].filter(Boolean);
 
-				// Prefer WAV; fall back to MP3 only when WAV data is unavailable.
+				// Prefer real MIDI/preset file, then WAV, then MP3.
 				const wavAvailable = !!audioBuffer;
 				const mp3Available = !!buffer;
-				const preferWav = wavAvailable || state === SpyState.LOADING || (!mp3Available);
-				const activeBtn = preferWav ? btnWav : btn;
-				const inactiveBtn = preferWav ? btn : btnWav;
+				const preferFile = fileAvailable && (assetType === 'midi' || assetType === 'preset');
+				const preferWav = !preferFile && (wavAvailable || state === SpyState.LOADING || (!mp3Available));
+				const activeBtn = (preferFile || preferWav) ? btnWav : btn;
+				const inactiveBtn = (preferFile || preferWav) ? btn : btnWav;
 
 				if (!shouldShow || isPackRunning) {
 					allBtns.forEach(b => b.classList.remove('visible'));
@@ -432,7 +439,8 @@ fs.writeFileSync(p, html);
 					if (state === SpyState.LOADING) activeBtn.classList.add('loading');
 					else if (state === SpyState.READY) {
 						activeBtn.classList.remove('loading');
-						activeBtn.title = preferWav ? 'Download selected as WAV' : `Download selected as ${ext ? ext.toUpperCase() : 'MP3'}`;
+						if (preferFile) activeBtn.title = `Download selected ${assetType === 'midi' ? 'MIDI' : 'preset'} file`;
+						else activeBtn.title = preferWav ? 'Download selected as WAV' : `Download selected as ${ext ? ext.toUpperCase() : 'MP3'}`;
 					}
 				}
 			}
@@ -450,14 +458,17 @@ fs.writeFileSync(p, html);
 			document.addEventListener('click', (e) => {
 				const row = e.target.closest('core-asset-list-row');
 				if (row) {
-					const foundName = getFilenameFromRow(row);
+					const foundName = getRawFilenameFromRow(row);
 					if (foundName) window.spyData.lastClickedFilename = foundName;
 					if (window.spyData.lastFocusedRow !== row) {
 						window.spyData.lastFocusedRow = row;
 						window.spyData.state = SpyState.LOADING;
 						window.spyData.buffer = null;
 						window.spyData.audioBuffer = null;
+						window.spyData.fileBuffer = null;
+						window.spyData.assetSourceUrl = null;
 						window.spyData.hasFocus = true;
+						resolveRowAsset(row);
 						renderButton();
 					}
 				}
@@ -468,8 +479,14 @@ fs.writeFileSync(p, html);
 				if (window.spyData.lastFocusedRow !== focusedEl) {
 					window.spyData.lastFocusedRow = focusedEl;
 					window.spyData.hasFocus = !!focusedEl;
-					if (focusedEl) { window.spyData.state = SpyState.LOADING; window.spyData.buffer = null; window.spyData.audioBuffer = null; }
-					else window.spyData.state = SpyState.HIDDEN;
+					if (focusedEl) {
+						window.spyData.state = SpyState.LOADING;
+						window.spyData.buffer = null;
+						window.spyData.audioBuffer = null;
+						window.spyData.fileBuffer = null;
+						window.spyData.assetSourceUrl = null;
+						resolveRowAsset(focusedEl);
+					} else window.spyData.state = SpyState.HIDDEN;
 					renderButton();
 				}
 				const btnGet = document.getElementById('splice-get-pack-btn');
@@ -507,7 +524,38 @@ fs.writeFileSync(p, html);
 				);
 			}
 
+
+			function isPresetsTabActive() {
+				const path = (location.pathname || '').toLowerCase();
+				if (/(?:^|\/)presets(?:\/|$)/.test(path)) return true;
+				const candidates = document.querySelectorAll('[role="tab"], a, button, .mat-tab-label, [class*="tab"]');
+				for (const el of candidates) {
+					const text = (el.textContent || '').trim().toLowerCase();
+					if (text !== 'presets' && text !== 'preset') continue;
+					const selected =
+						el.getAttribute('aria-selected') === 'true' ||
+						el.classList.contains('active') ||
+						el.classList.contains('selected') ||
+						el.classList.contains('mat-tab-label-active') ||
+						el.getAttribute('aria-current') === 'page';
+					if (selected) return true;
+				}
+				return false;
+			}
+
+			function isSelectedPreset() {
+				if (window.spyData.assetType === 'preset') return true;
+				const row = window.spyData.lastFocusedRow;
+				if (!row) return false;
+				return getAssetKind(getRawFilenameFromRow(row)) === 'preset';
+			}
+
+			function shouldHideDownloadsForPresets() {
+				return isPresetsTabActive() || isSelectedPreset();
+			}
+
 			function shouldShowBulkButton() {
+				if (isPresetsTabActive()) return false;
 				return isPackOrCollectionPage() || hasPaginationControls();
 			}
 
@@ -600,11 +648,389 @@ fs.writeFileSync(p, html);
 				renderButton();
 			}
 
-			function getFilenameFromRow(row) {
+			function getRawFilenameFromRow(row) {
 				const el = row.querySelector('.filename');
 				if (!el) return null;
-				let name = el.textContent.trim().replace(/\.(wav|aiff|flac|m4a)$/i, '.mp3');
-				return name.endsWith('.mp3') ? name : name + '.mp3';
+				return el.textContent.trim();
+			}
+
+			function getFilenameFromRow(row) {
+				const name = getRawFilenameFromRow(row);
+				if (!name) return null;
+				const kind = getAssetKind(name);
+				if (kind === 'midi' || kind === 'preset') return name;
+				let out = name.replace(/\.(wav|aiff|flac|m4a)$/i, '.mp3');
+				return out.toLowerCase().endsWith('.mp3') ? out : out + '.mp3';
+			}
+
+			function toWavFilename(name) {
+				const base = String(name || `audio_${Date.now()}`)
+					.replace(/\.(mp3|wav|aiff|aif|flac|m4a|mid|midi|serumpreset|fxp|xml|nksn|h2p)$/i, '');
+				return `${base}.wav`;
+			}
+
+			function getAssetKind(name, asset = null) {
+				const n = (name || asset?.name || '').toLowerCase();
+				const typeSlug = (asset?.asset_type_slug || asset?.__typename || '').toLowerCase();
+				if (typeSlug.includes('midi') || /\.(mid|midi)$/i.test(n)) return 'midi';
+				if (typeSlug.includes('preset') || /\.(serumpreset|fxp|preset|vital|json|xml|nksn|h2p)$/i.test(n)) return 'preset';
+				return 'sample';
+			}
+
+			function normalizeAssetKey(name) {
+				return (name || '').toLowerCase().replace(/\.(serumpreset|mid|midi|wav|mp3|aiff|flac|fxp|m4a)$/i, '');
+			}
+
+			function cacheAssetFromGraphql(asset) {
+				if (!asset || !asset.name) return;
+				const entry = {
+					uuid: asset.uuid,
+					name: asset.name,
+					__typename: asset.__typename,
+					asset_type_slug: asset.asset_type_slug,
+					files: Array.isArray(asset.files) ? asset.files : [],
+					licensed: !!asset.licensed,
+					device: asset.device || null
+				};
+				const keys = [asset.name.toLowerCase(), normalizeAssetKey(asset.name)];
+				if (asset.uuid) keys.push(asset.uuid);
+				const prev = window.spyAssetCache.get(normalizeAssetKey(asset.name));
+				keys.filter(Boolean).forEach(k => window.spyAssetCache.set(k, entry));
+				if (!prev || (entry.files?.length && entry.files.length !== (prev.files?.length || 0))) {
+					const fileSummary = (entry.files || []).map(f => ({
+						slug: f?.asset_file_type_slug,
+						hasUrl: !!f?.url,
+						name: f?.name,
+						path: f?.path,
+						url: f?.url || null
+					}));
+					console.log('[Spy Debug] Cached asset from network', entry.name, entry.__typename || entry.asset_type_slug, fileSummary);
+				}
+			}
+
+			function walkGraphqlForAssets(node, depth = 0) {
+				if (!node || typeof node !== 'object' || depth > 12) return;
+				if (Array.isArray(node)) { node.forEach(n => walkGraphqlForAssets(n, depth + 1)); return; }
+				if (node.name && (Array.isArray(node.files) || node.__typename || node.uuid)) cacheAssetFromGraphql(node);
+				for (const key of Object.keys(node)) {
+					try { walkGraphqlForAssets(node[key], depth + 1); } catch (_) {}
+				}
+			}
+
+			function findCachedAsset(name) {
+				if (!name) return null;
+				const lower = name.toLowerCase();
+				const norm = normalizeAssetKey(name);
+				if (window.spyAssetCache.has(lower)) return window.spyAssetCache.get(lower);
+				if (window.spyAssetCache.has(norm)) return window.spyAssetCache.get(norm);
+				for (const asset of window.spyAssetCache.values()) {
+					if (normalizeAssetKey(asset.name) === norm) return asset;
+				}
+				return null;
+			}
+
+			function getGraphqlEndpoint() {
+				if (window.graphQLEndpoint) return window.graphQLEndpoint;
+				if (window.environment === 'production' || !window.environment) return 'https://surfaces-graphql.splice.com/graphql';
+				return 'https://surfaces-graphql-preprod.splice.com/graphql';
+			}
+
+			function getAccessTokenFromStorage() {
+				for (let i = 0; i < localStorage.length; i++) {
+					const key = localStorage.key(i);
+					const raw = localStorage.getItem(key);
+					if (!raw || raw.length < 20) continue;
+					try {
+						const parsed = JSON.parse(raw);
+						const token = parsed?.body?.access_token || parsed?.access_token || parsed?.accessToken;
+						if (token && typeof token === 'string' && token.length > 20) return token;
+					} catch (_) {}
+				}
+				return null;
+			}
+
+			async function queryGraphql(query, variables = {}) {
+				const endpoint = getGraphqlEndpoint();
+				const token = getAccessTokenFromStorage();
+				const headers = {
+					'content-type': 'application/json',
+					'apollographql-client-name': 'splice-desktop-main'
+				};
+				if (token) headers.Authorization = `Bearer ${token}`;
+				console.log('[Spy Debug] GraphQL request', endpoint, { hasToken: !!token, variables });
+				const res = await fetch(endpoint, {
+					method: 'POST',
+					headers,
+					credentials: 'include',
+					body: JSON.stringify({ query, variables })
+				});
+				const json = await res.json();
+				console.log('[Spy Debug] GraphQL response status', res.status, {
+					errors: json.errors || null,
+					keys: json.data ? Object.keys(json.data) : null
+				});
+				walkGraphqlForAssets(json);
+				return json;
+			}
+
+			async function lookupSelectedAsset(name) {
+				if (!name) return null;
+				const cached = findCachedAsset(name);
+				if (cached?.files?.length) return cached;
+
+				const queryName = name.replace(/\.(SerumPreset|mid|midi)$/i, '');
+				const isMidi = /\.(mid|midi)$/i.test(name);
+				const assetType = isMidi ? 'midi' : 'preset';
+				const query = `
+					query SpyAssetLookup($query: String, $asset_type_slug: AssetTypeSlug) {
+						assetsSearch(filter: { query: $query, asset_type_slug: $asset_type_slug }, limit: 10) {
+							items {
+								... on IAsset {
+									uuid
+									name
+									licensed
+									asset_type_slug
+									files { name hash path asset_file_type_slug url uuid }
+								}
+								... on PresetAsset {
+									__typename
+									device { name uuid }
+								}
+								... on MidiAsset {
+									__typename
+								}
+								... on SampleAsset {
+									__typename
+								}
+							}
+						}
+					}
+				`;
+				try {
+					const json = await queryGraphql(query, { query: queryName, asset_type_slug: assetType });
+					const items = json?.data?.assetsSearch?.items || [];
+					console.log('[Spy Debug] Lookup items', items.map(i => ({
+						name: i?.name,
+						uuid: i?.uuid,
+						typename: i?.__typename,
+						files: (i?.files || []).map(f => ({ slug: f?.asset_file_type_slug, hasUrl: !!f?.url, url: f?.url }))
+					})));
+					const match = items.find(i => normalizeAssetKey(i?.name) === normalizeAssetKey(name)) || items[0] || null;
+					if (match) cacheAssetFromGraphql(match);
+					return findCachedAsset(name) || match;
+				} catch (err) {
+					console.error('[Spy Debug] Active GraphQL lookup failed', err);
+					return findCachedAsset(name);
+				}
+			}
+
+			function getSourceFile(asset) {
+				if (!asset?.files?.length) return null;
+				return asset.files.find(f => f && f.asset_file_type_slug === 'source' && f.url)
+					|| asset.files.find(f => f && f.url && !/preview/i.test(f.asset_file_type_slug || '') && !/preview/i.test(f.path || ''))
+					|| null;
+			}
+
+			function getPreviewFile(asset) {
+				if (!asset?.files?.length) return null;
+				return asset.files.find(f => f && f.url && (f.asset_file_type_slug === 'preview_mp3' || /preview/i.test(f.path || '') || /preview/i.test(f.url || ''))) || null;
+			}
+
+			function extractNgAssetFromRow(row) {
+				const found = [];
+				const seen = new Set();
+				const pushAsset = (val) => {
+					if (!val?.name || seen.has(val)) return;
+					seen.add(val);
+					found.push({
+						name: val.name,
+						uuid: val.uuid,
+						__typename: val.__typename,
+						asset_type_slug: val.asset_type_slug,
+						licensed: val.licensed,
+						files: val.files,
+						device: val.device,
+						keys: Object.keys(val).slice(0, 40)
+					});
+				};
+				const visit = (val, depth = 0) => {
+					if (!val || depth > 5 || typeof val !== 'object') return;
+					if (found.length > 12) return;
+					if (val.preset) pushAsset(val.preset);
+					if (val.sample) pushAsset(val.sample);
+					if (val.midi) pushAsset(val.midi);
+					if (val.asset) pushAsset(val.asset);
+					if (val.name && (val.uuid || val.files || val.__typename)) pushAsset(val);
+					if (Array.isArray(val)) {
+						for (const item of val.slice(0, 25)) visit(item, depth + 1);
+						return;
+					}
+					for (const key of Object.keys(val).slice(0, 50)) {
+						if (key.startsWith('ɵ') || (key.startsWith('__') && key !== '__typename' && key !== '__ngContext__')) continue;
+						try { visit(val[key], depth + 1); } catch (_) {}
+					}
+				};
+
+				let el = row;
+				for (let i = 0; i < 10 && el; i++) {
+					for (const key of ['preset', 'sample', 'midi', 'asset', 'item', 'data']) {
+						try { if (el[key]) pushAsset(el[key]); } catch (_) {}
+					}
+					try { visit(el.__ngContext__); } catch (_) {}
+					try {
+						if (typeof ng !== 'undefined') {
+							const comp = ng.getComponent?.(el);
+							if (comp) visit(comp);
+							const ctx = ng.getContext?.(el);
+							if (ctx) visit(ctx);
+						}
+					} catch (_) {}
+					el = el.parentElement;
+				}
+				return found;
+			}
+
+			function debugSelectedAsset(row, extra = {}) {
+				const name = getRawFilenameFromRow(row);
+				const cached = findCachedAsset(name);
+				const ngAssets = extractNgAssetFromRow(row);
+				const kind = getAssetKind(name, cached || ngAssets[0]);
+				const files = cached?.files || ngAssets.find(a => a.files?.length)?.files || [];
+				const source = getSourceFile(cached) || getSourceFile({ files });
+				const preview = getPreviewFile(cached) || getPreviewFile({ files });
+				const cacheKeys = [...window.spyAssetCache.keys()].slice(0, 30);
+
+				console.log('%c[Spy Debug] Selected asset', 'color: #fbbf24; font-weight: bold;');
+				console.table([{
+					name,
+					kind,
+					cached: !!cached,
+					uuid: cached?.uuid || ngAssets[0]?.uuid || null,
+					typename: cached?.__typename || ngAssets[0]?.__typename || null,
+					licensed: cached?.licensed ?? ngAssets[0]?.licensed ?? null,
+					filesCount: files.length,
+					hasSourceUrl: !!source?.url,
+					hasPreviewUrl: !!preview?.url,
+					sourceUrl: source?.url || null,
+					previewUrl: preview?.url || null,
+					spyState: window.spyData.state,
+					hasAudioBuffer: !!window.spyData.audioBuffer,
+					hasFileBuffer: !!window.spyData.fileBuffer,
+					cacheSize: window.spyAssetCache.size
+				}]);
+				console.log('[Spy Debug] files[]', files);
+				console.log('[Spy Debug] ng-extracted candidates', ngAssets);
+				console.log('[Spy Debug] cache keys (first 30)', cacheKeys);
+				console.log('[Spy Debug] spyData', { ...window.spyData, buffer: !!window.spyData.buffer, audioBuffer: !!window.spyData.audioBuffer, fileBuffer: !!window.spyData.fileBuffer && window.spyData.fileBuffer.byteLength });
+				console.log('[Spy Debug] extras', extra);
+				return { name, kind, cached, ngAssets, files, source, preview };
+			}
+
+			window.spyDebugSelected = function() {
+				const row = window.spyData.lastFocusedRow || document.querySelector('core-asset-list-row.focused, .focused');
+				if (!row) {
+					console.warn('[Spy Debug] No focused row. Select a preset/sample first.');
+					return null;
+				}
+				return debugSelectedAsset(row, { manual: true });
+			};
+
+			async function applyResolvedAsset(row, asset, name) {
+				const kind = getAssetKind(name, asset);
+				const source = getSourceFile(asset);
+				const preview = getPreviewFile(asset);
+				window.spyData.assetType = kind;
+				window.spyData.fileName = source?.name || name || null;
+				window.spyData.assetSourceUrl = source?.url || null;
+				window.spyData.fileBuffer = null;
+
+				console.log('[Spy Debug] Resolved after lookup', {
+					name,
+					kind,
+					uuid: asset?.uuid,
+					licensed: asset?.licensed,
+					files: (asset?.files || []).map(f => ({ slug: f?.asset_file_type_slug, hasUrl: !!f?.url, url: f?.url, path: f?.path })),
+					hasSourceUrl: !!source?.url,
+					hasPreviewUrl: !!preview?.url
+				});
+
+				if ((kind === 'midi' || kind === 'preset') && source?.url) {
+					console.log('[Spy Debug] Prefetching SOURCE file...', source.url);
+					try {
+						const r = await fetch(source.url);
+						console.log('[Spy Debug] Source fetch status', r.status, r.headers.get('content-type'));
+						const buf = await r.arrayBuffer();
+						if (window.spyData.lastFocusedRow !== row) return;
+						window.spyData.fileBuffer = buf;
+						console.log('[Spy Debug] Source file ready', buf.byteLength, 'bytes');
+						updateState(SpyState.READY, { buffer: window.spyData.buffer, audioBuffer: window.spyData.audioBuffer, ext: kind });
+					} catch (err) {
+						console.warn('[Spy] Source file prefetch failed:', err);
+					}
+					return;
+				}
+
+				if ((kind === 'midi' || kind === 'preset') && !source?.url) {
+					console.warn('%c[Spy Debug] No source URL for this preset/MIDI — Splice did not expose the real file.', 'color: #f87171;');
+					if (preview?.url) console.log('[Spy Debug] Preview URL only:', preview.url);
+					if (window.spyData.lastFocusedRow === row && !window.spyData.audioBuffer) {
+						window.spyData.state = SpyState.READY;
+						renderButton();
+					}
+				}
+			}
+
+			function resolveRowAsset(row) {
+				const debug = debugSelectedAsset(row);
+				const name = debug.name;
+				if (debug.ngAssets?.length) {
+					for (const candidate of debug.ngAssets) {
+						if (candidate.name || candidate.uuid) cacheAssetFromGraphql(candidate);
+					}
+				}
+
+				const kind = debug.kind;
+				window.spyData.assetType = kind;
+				window.spyData.fileName = name;
+				window.spyData.assetSourceUrl = debug.source?.url || null;
+				window.spyData.fileBuffer = null;
+
+				if (kind === 'midi' || kind === 'preset') {
+					lookupSelectedAsset(name).then(asset => {
+						if (window.spyData.lastFocusedRow !== row) return;
+						applyResolvedAsset(row, asset, name);
+						debugSelectedAsset(row, { afterLookup: true });
+					});
+				}
+			}
+
+			async function saveBinaryFile(relativePath, buffer) {
+				const { ipcRenderer } = require('electron');
+				return ipcRenderer.invoke('antigravity-save-file', relativePath, buffer);
+			}
+
+			async function downloadRowAssetFile(row, packName) {
+				const name = getRawFilenameFromRow(row);
+				const asset = findCachedAsset(name);
+				const kind = getAssetKind(name, asset);
+				if (kind === 'sample') return false;
+				const source = getSourceFile(asset);
+				if (!source?.url) {
+					console.warn(`[Spy] No source URL for ${kind} "${name}". Splice usually only exposes preview audio until licensed.`);
+					return false;
+				}
+				try {
+					const res = await fetch(source.url);
+					if (!res.ok) throw new Error(`HTTP ${res.status}`);
+					const buf = await res.arrayBuffer();
+					const filename = source.name || name || `asset_${Date.now()}`;
+					const fullPath = packName ? require('path').join(packName, filename) : filename;
+					const result = await saveBinaryFile(fullPath, buf);
+					return !!(result && result.success);
+				} catch (err) {
+					console.error(`[Spy] Failed to download ${kind} file:`, err);
+					return false;
+				}
 			}
 
 			function getPackName() {
@@ -700,12 +1126,27 @@ fs.writeFileSync(p, html);
 
 						for (const row of rows) {
 							if (window.isGetPackCancelled) break;
+							row.scrollIntoView({ behavior: 'auto', block: 'center' });
+							await new Promise(r => setTimeout(r, 80));
+
+							const rawName = getRawFilenameFromRow(row);
+							const kind = getAssetKind(rawName, findCachedAsset(rawName));
+
+							// MIDI / presets: download source file when Splice exposes a URL
+							if (kind === 'midi' || kind === 'preset') {
+								const saved = await downloadRowAssetFile(row, packName);
+								if (saved) {
+									done++;
+									if (done > total) total = done;
+									setBulkProgress(done, total);
+								}
+								continue;
+							}
+
 							const playBtn = row.querySelector('[data-qa="playPlaybackButton"]');
 							if (!playBtn) continue;
 							window.spyData.buffer = null;
 							window.spyData.audioBuffer = null;
-							row.scrollIntoView({ behavior: 'auto', block: 'center' });
-							await new Promise(r => setTimeout(r, 100));
 							const opts = { bubbles: true, cancelable: true, view: window };
 							row.dispatchEvent(new MouseEvent('click', opts));
 							playBtn.dispatchEvent(new MouseEvent('click', opts));
@@ -718,16 +1159,13 @@ fs.writeFileSync(p, html);
 							}
 							
 							if (window.spyData.audioBuffer && !window.isGetPackCancelled) {
-								let filename = getFilenameFromRow(row);
-								if (filename) filename = filename.replace(/\.mp3$/, '') + '.wav';
-								else filename = `audio_${Date.now()}.wav`;
+								const filename = toWavFilename(getRawFilenameFromRow(row) || getFilenameFromRow(row));
 								
 								const wavBuffer = audioBufferToWav(window.spyData.audioBuffer);
-								const { ipcRenderer } = require('electron');
 								const fullPath = require('path').join(packName, filename);
 								
 								console.log(`[Spy] Saving batch WAV: ${fullPath}`);
-								const result = await ipcRenderer.invoke('antigravity-save-file', fullPath, wavBuffer);
+								const result = await saveBinaryFile(fullPath, wavBuffer);
 								if (!result || !result.success) console.error(`[Spy] Batch save failed for ${filename}:`, result);
 								else {
 									done++;
@@ -859,36 +1297,54 @@ fs.writeFileSync(p, html);
 			}
 
 			window.downloadLastAudioWav = async function(customFilename = null) {
-				if (!customFilename) customFilename = window.spyData.lastClickedFilename;
-				
+				if (!customFilename) customFilename = window.spyData.lastClickedFilename || window.spyData.fileName;
+				const btn = document.getElementById('splice-spy-btn-wav');
+				const flash = (ok) => {
+					if (!btn) return;
+					const old = btn.innerHTML;
+					btn.innerHTML = ok ? '<span>Saved!</span>' : '<span>Error!</span>';
+					setTimeout(() => btn.innerHTML = old, 2000);
+				};
+
+				// Prefer real MIDI/preset source file when available
+				if (window.spyData.fileBuffer || window.spyData.assetSourceUrl) {
+					try {
+						let buffer = window.spyData.fileBuffer;
+						if (!buffer && window.spyData.assetSourceUrl) {
+							const res = await fetch(window.spyData.assetSourceUrl);
+							if (!res.ok) throw new Error(`HTTP ${res.status}`);
+							buffer = await res.arrayBuffer();
+							window.spyData.fileBuffer = buffer;
+						}
+						const filename = customFilename || window.spyData.fileName || `asset_${Date.now()}`;
+						const fullPath = require('path').join(getPackName(), filename);
+						console.log(`[Spy] Saving selected ${window.spyData.assetType} file: ${fullPath}`);
+						const result = await saveBinaryFile(fullPath, buffer);
+						flash(result && result.success);
+						return;
+					} catch (err) {
+						console.error('[Spy] Selected file download failed:', err);
+						flash(false);
+						return;
+					}
+				}
+
 				console.log('[Spy] downloadLastAudioWav triggered.', { customFilename, hasAudioBuffer: !!window.spyData.audioBuffer });
 				
 				if (!window.spyData.audioBuffer) {
-					console.error('[Spy] Cannot download: window.spyData.audioBuffer is null.');
+					console.error('[Spy] Cannot download: no source file or audioBuffer available.');
+					flash(false);
 					return;
 				}
 				
 				const wavBuffer = audioBufferToWav(window.spyData.audioBuffer);
-				const { ipcRenderer } = require('electron');
-				let filename = (customFilename || 'audio.mp3').replace(/\.mp3$/, '') + '.wav';
-				const packName = getPackName();
-				const fullPath = require('path').join(packName, filename);
+				const filename = toWavFilename(customFilename || 'audio');
+				const fullPath = require('path').join(getPackName(), filename);
 				
 				console.log(`[Spy] Attempting to save individual WAV: ${fullPath}, Buffer size: ${wavBuffer.byteLength}`);
-				
-				const result = await ipcRenderer.invoke('antigravity-save-file', fullPath, wavBuffer);
+				const result = await saveBinaryFile(fullPath, wavBuffer);
 				console.log(`[Spy] IPC Save result:`, result);
-				
-				const btn = document.getElementById('splice-spy-btn-wav');
-				if (btn) { 
-					const old = btn.innerHTML; 
-					if (result && result.success) {
-						btn.innerHTML = '<span>Saved!</span>'; 
-					} else {
-						btn.innerHTML = '<span>Error!</span>'; 
-					}
-					setTimeout(() => btn.innerHTML = old, 2000); 
-				}
+				flash(result && result.success);
 			};
 
 			function clampPageCount() {
@@ -981,14 +1437,78 @@ fs.writeFileSync(p, html);
 			}
 			if (document.body) injectButton(); else document.addEventListener('DOMContentLoaded', injectButton);
 
+			const FILE_URL_RE = /\.(mp3|wav|m4a|aac|aiff|flac|mid|midi|serumpreset|fxp)(\?|$)/i;
+			function ingestNetworkPayload(reqUrl, bodyText) {
+				if (!bodyText || typeof bodyText !== 'string') return;
+				const url = (reqUrl || '').toLowerCase();
+				if (!(url.includes('graphql') || bodyText.includes('assetsSearch') || bodyText.includes('PresetAsset') || bodyText.includes('asset_file_type_slug'))) return;
+				try {
+					const data = JSON.parse(bodyText);
+					const before = window.spyAssetCache.size;
+					walkGraphqlForAssets(data);
+					console.log('[Spy Debug] Ingested network JSON', reqUrl, 'cache', before, '->', window.spyAssetCache.size);
+				} catch (err) {
+					console.warn('[Spy Debug] Failed to parse network JSON', reqUrl, err);
+				}
+			}
+
 			const originalFetch = window.fetch;
 			window.fetch = async (...args) => {
-				const url = args[0]?.toString().toLowerCase() || '';
+				const reqUrl = args[0]?.url || args[0]?.toString() || '';
+				const url = reqUrl.toLowerCase();
 				if (url.match(/\.(mp3|wav|m4a|aac|aiff|flac)(\?|$)/)) {
 					if (window.spyData.state !== SpyState.READY) updateState(SpyState.LOADING);
 				}
-				return originalFetch.apply(window, args);
+				const response = await originalFetch.apply(window, args);
+				try {
+					const clone = response.clone();
+					const contentType = (clone.headers.get('content-type') || '').toLowerCase();
+					if (contentType.includes('json') || url.includes('graphql')) {
+						clone.text().then(text => ingestNetworkPayload(reqUrl, text)).catch(err => console.warn('[Spy Debug] fetch body read failed', err));
+					} else if (FILE_URL_RE.test(url) || /midi|serumpreset|octet-stream/i.test(contentType)) {
+						clone.arrayBuffer().then(buf => {
+							const nameFromUrl = decodeURIComponent((reqUrl.split('?')[0].split('/').pop() || ''));
+							if (!nameFromUrl) return;
+							const kind = getAssetKind(nameFromUrl);
+							if (kind === 'midi' || kind === 'preset') {
+								cacheAssetFromGraphql({
+									name: nameFromUrl,
+									asset_type_slug: kind,
+									files: [{ name: nameFromUrl, url: reqUrl, asset_file_type_slug: 'source' }]
+								});
+								if (window.spyData.fileName && normalizeAssetKey(window.spyData.fileName) === normalizeAssetKey(nameFromUrl)) {
+									window.spyData.fileBuffer = buf;
+									window.spyData.assetSourceUrl = reqUrl;
+									window.spyData.assetType = kind;
+									updateState(SpyState.READY, { buffer: window.spyData.buffer, audioBuffer: window.spyData.audioBuffer, ext: kind });
+								}
+							}
+						}).catch(() => {});
+					}
+				} catch (_) {}
+				return response;
 			};
+
+			// Apollo/Angular may use XHR instead of fetch
+			(function hookXHR() {
+				const open = XMLHttpRequest.prototype.open;
+				const send = XMLHttpRequest.prototype.send;
+				XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+					this.__spyUrl = url?.toString?.() || '';
+					return open.call(this, method, url, ...rest);
+				};
+				XMLHttpRequest.prototype.send = function(...args) {
+					this.addEventListener('load', () => {
+						try {
+							if (this.responseType && this.responseType !== '' && this.responseType !== 'text' && this.responseType !== 'json') return;
+							const text = typeof this.response === 'string' ? this.response : this.responseText;
+							ingestNetworkPayload(this.__spyUrl, text);
+						} catch (_) {}
+					});
+					return send.apply(this, args);
+				};
+				console.log('[Spy Debug] XHR hook installed');
+			})();
 
 			const originalDecodeAudioData = window.AudioContext.prototype.decodeAudioData;
 			window.AudioContext.prototype.decodeAudioData = function(audioData, success, error) {
