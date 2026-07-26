@@ -178,6 +178,7 @@ fs.writeFileSync(p, html);
 			console.log('%c[Spy] Audio Spy Injected v22 (No double .wav)', 'color: cyan; font-size: 20px; font-weight: bold;');
 
 			const ICON_DOWNLOAD = `<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><use xlink:href="#icon-download"></use></svg>`;
+			const ICON_SEARCH = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"><line x1="7.652" y1="7.652" x2="10.75" y2="10.75"></line><circle cx="5" cy="5" r="3.75"></circle></svg>`;
 			const ICON_CHEVRON_UP = `<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M5 2.5L9 7H1L5 2.5z"/></svg>`;
 			const ICON_CHEVRON_DOWN = `<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M5 7.5L1 3h8L5 7.5z"/></svg>`;
 			const ICON_CHECK = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-7"/></svg>`;
@@ -198,7 +199,7 @@ fs.writeFileSync(p, html);
         flex-direction: row;
         justify-content: flex-end;
         align-items: center;
-        gap: 4px;
+        gap: 6px;
         right: 22px;
         bottom: 82px;
     }
@@ -226,10 +227,12 @@ fs.writeFileSync(p, html);
         border-radius: 5px;
     }
     
-    .spy-btn-class span { opacity: 1; transition: opacity 0.2s; }
-    .spy-btn-class:hover span { opacity: 0.6; }
-    .spy-btn-class svg { opacity: 0.7; transition: opacity 0.2s; }
-    .spy-btn-class:hover svg { opacity: 0.4; }
+    .spy-btn-class span { opacity: 1; }
+    .spy-btn-class svg { opacity: 0.7; }
+    .spy-btn-class.spy-btn-wav { background-color: #1253ff; }
+    .spy-btn-class:hover {
+        background-image: linear-gradient(rgba(255,255,255,0.12), rgba(255,255,255,0.12));
+    }
     
     .spy-btn-class.visible {
         transform: scale(1);
@@ -261,11 +264,103 @@ fs.writeFileSync(p, html);
         display: flex;
     }
 
+    #splice-search-btn-wrap {
+        display: none;
+        position: relative;
+        align-items: stretch;
+        height: 32px;
+        background-color: #5d5d5d;
+        color: #fff;
+        border-radius: 5px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        overflow: visible;
+    }
+    #splice-search-btn-wrap.visible { display: flex; }
+    #splice-rt-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        border: none;
+        border-radius: 5px 0 0 5px;
+        background: transparent;
+        color: inherit;
+        font-weight: 500;
+        font-size: 14px;
+        cursor: pointer;
+        padding: 0 10px 0 8px;
+        white-space: nowrap;
+    }
+    #splice-rt-btn span { opacity: 1; }
+    #splice-rt-btn svg { opacity: 0.7; flex-shrink: 0; }
+    #splice-rt-btn:hover { background: rgba(255,255,255,0.12); }
+    #splice-search-menu-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        border: none;
+        border-left: 1px solid rgba(255,255,255,0.18);
+        border-radius: 0 5px 5px 0;
+        background: transparent;
+        color: rgba(255,255,255,0.85);
+        cursor: pointer;
+        padding: 0;
+    }
+    #splice-search-menu-btn:hover {
+        background: rgba(255,255,255,0.12);
+        color: #fff;
+    }
+    #splice-search-menu-btn svg { opacity: 0.85; }
+    #splice-search-dropdown {
+        display: none;
+        position: absolute;
+        right: 0;
+        bottom: calc(100% + 6px);
+        min-width: 100%;
+        background: #3a3a3a;
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 6px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+        padding: 4px;
+        z-index: 10000;
+    }
+    #splice-search-btn-wrap.open #splice-search-dropdown { display: flex; flex-direction: column; gap: 2px; }
+    #splice-search-dropdown button {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        border: none;
+        border-radius: 4px;
+        background: transparent;
+        color: #fff;
+        font-size: 13px;
+        font-weight: 500;
+        text-align: left;
+        padding: 7px 10px;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    #splice-search-dropdown button:hover { background: rgba(255,255,255,0.1); }
+    #splice-search-dropdown button.active { background: rgba(255,255,255,0.14); }
+    #splice-search-dropdown button .spy-site-check {
+        display: flex;
+        width: 12px;
+        opacity: 0;
+        flex-shrink: 0;
+    }
+    #splice-search-dropdown button .spy-site-check svg {
+        width: 12px;
+        height: 12px;
+    }
+    #splice-search-dropdown button.active .spy-site-check { opacity: 1; }
+
     #splice-get-pack-btn {
         display: flex;
         align-items: stretch;
         height: 32px;
-        background-color: #1253ff;
+        background-color: #6D28D9;
         color: #fff;
         border-radius: 5px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
@@ -291,10 +386,11 @@ fs.writeFileSync(p, html);
         padding: 0 10px 0 8px;
         white-space: nowrap;
     }
-    #splice-get-pack-action span { opacity: 1; transition: opacity 0.2s; }
-    #splice-get-pack-btn:not(.loading):not(.success) #splice-get-pack-action:hover span { opacity: 0.6; }
-    #splice-get-pack-action svg { opacity: 0.7; transition: opacity 0.2s; }
-    #splice-get-pack-btn:not(.loading):not(.success) #splice-get-pack-action:hover svg { opacity: 0.4; }
+    #splice-get-pack-action span { opacity: 1; }
+    #splice-get-pack-action svg { opacity: 0.7; }
+    #splice-get-pack-btn:not(.loading):not(.success) #splice-get-pack-action:hover {
+        background: rgba(255,255,255,0.12);
+    }
     #splice-get-pack-action .spy-spinner { display: none; margin: 0; }
     #splice-get-pack-btn.loading #splice-get-pack-action {
         cursor: default;
@@ -337,14 +433,14 @@ fs.writeFileSync(p, html);
         display: flex;
         align-items: stretch;
         border-left: 1px solid rgba(255,255,255,0.22);
-        background: rgba(0,0,0,0.18);
+        background: transparent;
     }
     .spy-page-stepper input {
         width: 28px;
         height: 100%;
         border: none;
         outline: none;
-        background: transparent;
+        background: rgba(0,0,0,0.18);
         color: #fff;
         text-align: center;
         font-size: 13px;
@@ -362,6 +458,7 @@ fs.writeFileSync(p, html);
         flex-direction: column;
         border-left: 1px solid rgba(255,255,255,0.18);
         width: 18px;
+        background: transparent;
     }
     .spy-page-arrows button {
         flex: 1;
@@ -392,14 +489,331 @@ fs.writeFileSync(p, html);
 			document.head.appendChild(styleEl);
 
 			const SpyState = { HIDDEN: 'hidden', LOADING: 'loading', READY: 'ready' };
+
+			function cleanRutrackerSearchPart(text) {
+				return (text || '')
+					.replace(/\b(vol\.?|volume)\s*\d+(\.\d+)?\b/gi, '')
+					.replace(/\b(pt\.?|part)\s*\d+(\.\d+)?\b/gi, '')
+					.replace(/\b(edition|ed\.?|ep|lp|ost)\b/gi, '')
+					.replace(/[^\w\s]/g, ' ')
+					.replace(/\s+/g, ' ')
+					.trim();
+			}
+
+			function buildRutrackerQuery(creatorName, packName) {
+				creatorName = cleanRutrackerSearchPart(creatorName);
+				packName = cleanRutrackerSearchPart(packName);
+				if (creatorName && packName) {
+					const creatorRe = new RegExp('^' + creatorName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s+', 'i');
+					packName = packName.replace(creatorRe, '').trim();
+				}
+				return [creatorName, packName].filter(Boolean).join(' ');
+			}
+
+			function takePackMeta(pack, into = { packName: '', creatorName: '' }) {
+				if (!pack || typeof pack !== 'object') return into;
+				const name = pack.name || pack.title || '';
+				const creator = pack.provider?.name || pack.provider_name || pack.attributionName || '';
+				if (name && !into.packName) into.packName = String(name).trim();
+				if (creator && !into.creatorName) into.creatorName = String(creator).trim();
+				return into;
+			}
+
+			function summarizePackCandidate(val) {
+				if (!val || typeof val !== 'object') return null;
+				const parents = val.parents?.items || val.parents;
+				return {
+					keys: Object.keys(val).slice(0, 40),
+					typename: val.__typename || null,
+					name: val.name || val.title || null,
+					providerName: val.provider?.name || val.provider_name || val.attributionName || null,
+					hasPack: !!val.pack,
+					packName: val.pack?.name || val.pack?.title || null,
+					packProvider: val.pack?.provider?.name || null,
+					parentsCount: Array.isArray(parents) ? parents.length : null,
+					parentSummary: Array.isArray(parents)
+						? parents.slice(0, 5).map(p => ({
+							typename: p?.__typename || null,
+							name: p?.name || p?.title || null,
+							provider: p?.provider?.name || null,
+							keys: p ? Object.keys(p).slice(0, 20) : []
+						}))
+						: null
+				};
+			}
+
+			function extractPackFromRow(row, { debug = false } = {}) {
+				const info = { packName: '', creatorName: '', source: null };
+				const dbg = {
+					rowTag: row?.tagName || null,
+					rowClasses: row?.className || null,
+					filename: null,
+					cachedPack: null,
+					tooltip: null,
+					candidates: [],
+					compTags: []
+				};
+				if (!row) {
+					if (debug) console.log('%c[Spy Debug] Pack extract: no row', 'color: #f87171;');
+					return info;
+				}
+
+				const consider = (val, depth = 0, via = '') => {
+					if (!val || typeof val !== 'object' || depth > 6) return;
+					if (debug && dbg.candidates.length < 12) {
+						const summary = summarizePackCandidate(val);
+						if (summary && (summary.hasPack || summary.parentsCount || summary.typename || summary.providerName)) {
+							dbg.candidates.push({ via, depth, ...summary });
+						}
+					}
+					if (info.packName && info.creatorName) return;
+					if (val.pack) {
+						const before = info.packName + '|' + info.creatorName;
+						takePackMeta(val.pack, info);
+						if ((info.packName + '|' + info.creatorName) !== before && !info.source) info.source = via + '.pack';
+					}
+					const isPack = val.__typename === 'PackAsset' || (!!val.provider && !val.files && !val.asset_type_slug);
+					if (isPack) {
+						const before = info.packName + '|' + info.creatorName;
+						takePackMeta(val, info);
+						if ((info.packName + '|' + info.creatorName) !== before && !info.source) info.source = via + ' (pack-like)';
+					}
+					const parents = val.parents?.items || val.parents;
+					if (Array.isArray(parents)) {
+						const pack = parents.find(p => p && (p.__typename === 'PackAsset' || p.provider));
+						if (pack) {
+							const before = info.packName + '|' + info.creatorName;
+							takePackMeta(pack, info);
+							if ((info.packName + '|' + info.creatorName) !== before && !info.source) info.source = via + '.parents';
+						}
+					}
+					if (val.sample) consider(val.sample, depth + 1, via + '.sample');
+					if (val.midi) consider(val.midi, depth + 1, via + '.midi');
+					if (val.preset) consider(val.preset, depth + 1, via + '.preset');
+					if (val.asset) consider(val.asset, depth + 1, via + '.asset');
+				};
+
+				let el = row.closest('core-sample-asset-list-row, core-preset-asset-row, core-generated-sample-asset-list-row, core-asset-list-row') || row;
+				for (let i = 0; i < 10 && el; i++) {
+					dbg.compTags.push(el.tagName);
+					try {
+						if (typeof ng !== 'undefined') {
+							const comp = ng.getComponent?.(el);
+							if (comp) consider(comp, 0, el.tagName + ':comp');
+							const ctx = ng.getContext?.(el);
+							if (ctx) consider(ctx, 0, el.tagName + ':ctx');
+						}
+					} catch (_) {}
+					try { consider(el.__ngContext__, 0, el.tagName + ':ngContext'); } catch (_) {}
+					for (const key of ['pack', 'sample', 'midi', 'preset', 'asset', 'item', 'data']) {
+						try { if (el[key]) consider(el[key], 0, el.tagName + '.' + key); } catch (_) {}
+					}
+					if (info.packName && info.creatorName) break;
+					el = el.parentElement;
+				}
+
+				const name = getRawFilenameFromRow(row);
+				dbg.filename = name;
+				if (!info.packName || !info.creatorName) {
+					const cached = findCachedAsset(name);
+					dbg.cachedPack = cached?.pack || null;
+					if (cached?.pack) {
+						const before = info.packName + '|' + info.creatorName;
+						takePackMeta(cached.pack, info);
+						if ((info.packName + '|' + info.creatorName) !== before && !info.source) info.source = 'assetCache.pack';
+					}
+				}
+
+				if (!info.packName) {
+					const tipEl = row.querySelector('[ng-reflect-sp-tooltip], [sptooltip], sp-pack-art, a[href*="/packs/"] img, a[href*="/packs/"]');
+					const tip = tipEl?.getAttribute('ng-reflect-sp-tooltip')
+						|| tipEl?.getAttribute('sptooltip')
+						|| tipEl?.getAttribute('title')
+						|| tipEl?.closest('a')?.getAttribute('title')
+						|| '';
+					dbg.tooltip = tip || null;
+					dbg.tooltipEl = tipEl ? {
+						tag: tipEl.tagName,
+						attrs: Array.from(tipEl.attributes || []).map(a => a.name).slice(0, 20)
+					} : null;
+					if (tip) {
+						info.packName = tip.trim();
+						if (!info.source) info.source = 'dom-tooltip';
+					}
+				}
+
+				if (debug) {
+					console.log('%c[Spy Debug] Pack/author extract', 'color: #38bdf8; font-weight: bold;');
+					console.table([{
+						filename: dbg.filename,
+						packName: info.packName || '(none)',
+						creatorName: info.creatorName || '(none)',
+						source: info.source || '(none)',
+						query: buildRutrackerQuery(info.creatorName, info.packName) || '(empty)',
+						rowTag: dbg.rowTag,
+						hasNg: typeof ng !== 'undefined'
+					}]);
+					console.log('[Spy Debug] pack walk tags', dbg.compTags);
+					console.log('[Spy Debug] pack candidates', dbg.candidates);
+					console.log('[Spy Debug] cached pack', dbg.cachedPack);
+					console.log('[Spy Debug] tooltip', dbg.tooltip, dbg.tooltipEl);
+					window.__spyLastPackDebug = { info, dbg };
+				}
+
+				return info;
+			}
+
+			function extractPackFromPageHeader() {
+				const info = { packName: '', creatorName: '' };
+				const titleEl =
+					document.querySelector('[data-qa="asset-header-title"]') ||
+					document.querySelector('sp-asset-header h1.title, sp-asset-header h1') ||
+					document.querySelector('[data-qa="entity-header-title"]');
+				if (titleEl) info.packName = titleEl.textContent.trim();
+
+				const creatorEl =
+					document.querySelector('[data-qa="asset-header-subheading"] a') ||
+					document.querySelector('[data-qa="asset-header-subheading"]') ||
+					document.querySelector('sp-asset-header h5.subheading a, sp-asset-header .subheading a') ||
+					document.querySelector('sp-subheading a') ||
+					document.querySelector('[data-qa="product-card.attribution"]') ||
+					document.querySelector('[data-qa="entity-header-creator"]');
+				if (creatorEl) info.creatorName = creatorEl.textContent.trim();
+
+				if ((!info.creatorName || !info.packName) && document.title) {
+					const titleMatch = document.title.match(/^(.*?)\s+by\s+(.+?)(?:\s*[|\-–].*)?$/i);
+					if (titleMatch) {
+						if (!info.packName) info.packName = titleMatch[1].trim();
+						if (!info.creatorName) info.creatorName = titleMatch[2].replace(/\s*[|\-–].*$/, '').trim();
+					}
+				}
+				return info;
+			}
+
+			function shouldShowRutrackerButton() {
+				if (isPackPage() || isCollectionPage()) return true;
+				const row = window.spyData?.lastFocusedRow;
+				return !!(window.spyData?.hasFocus && row && (row.matches?.('core-asset-list-row, core-sample-asset-list-row, core-preset-asset-row') || row.closest?.('core-asset-list-row, core-sample-asset-list-row, core-preset-asset-row')));
+			}
+
+			const SEARCH_SITES = [
+				{
+					id: 'rutracker',
+					label: 'Rutracker',
+					buildUrl: (q) => 'https://rutracker.org/forum/tracker.php?nm=' + encodeURIComponent(q)
+				},
+				{
+					id: 'audioz',
+					label: 'Audioz',
+					buildUrl: (q) => 'https://audioz.download/?do=search&story=' + encodeURIComponent(q)
+				},
+				{
+					id: 'audionews',
+					label: 'Audionews',
+					buildUrl: (q) => 'https://audionews.org/tracker.php?max=1&to=1&nm=' + encodeURIComponent(q) + '&quick_search_action=tracker.php%23results#results'
+				}
+			];
+			const SEARCH_SITE_STORAGE_KEY = 'splice-spy-search-site';
+
+			function getSelectedSearchSite() {
+				const saved = localStorage.getItem(SEARCH_SITE_STORAGE_KEY);
+				return SEARCH_SITES.find(s => s.id === saved) || SEARCH_SITES[0];
+			}
+
+			function setSelectedSearchSite(id) {
+				const site = SEARCH_SITES.find(s => s.id === id) || SEARCH_SITES[0];
+				localStorage.setItem(SEARCH_SITE_STORAGE_KEY, site.id);
+				syncSearchSiteUI();
+				return site;
+			}
+
+			function syncSearchSiteUI() {
+				const site = getSelectedSearchSite();
+				const label = document.querySelector('#splice-rt-btn span');
+				const rtBtn = document.getElementById('splice-rt-btn');
+				if (label) label.textContent = site.label;
+				if (rtBtn) rtBtn.title = 'Search ' + site.label;
+				document.querySelectorAll('#splice-search-dropdown button[data-site]').forEach(btn => {
+					btn.classList.toggle('active', btn.dataset.site === site.id);
+				});
+			}
+
+			function closeSearchSiteDropdown() {
+				const wrap = document.getElementById('splice-search-btn-wrap');
+				if (wrap) wrap.classList.remove('open');
+			}
+
+			function toggleSearchSiteDropdown(forceOpen) {
+				const wrap = document.getElementById('splice-search-btn-wrap');
+				if (!wrap) return;
+				const open = typeof forceOpen === 'boolean' ? forceOpen : !wrap.classList.contains('open');
+				wrap.classList.toggle('open', open);
+				if (open) syncSearchSiteUI();
+			}
+
+			function isBulkDownloadActive() {
+				const btnGet = document.getElementById('splice-get-pack-btn');
+				return !!(btnGet && (btnGet.classList.contains('loading') || btnGet.classList.contains('success')));
+			}
+
+			function syncRutrackerButton() {
+				const wrap = document.getElementById('splice-search-btn-wrap');
+				if (!wrap) return;
+				if (shouldShowRutrackerButton() && !isBulkDownloadActive()) {
+					wrap.classList.add('visible');
+					syncSearchSiteUI();
+				} else {
+					wrap.classList.remove('visible', 'open');
+				}
+			}
+
+			window.openRutrackerSearch = function() {
+				closeSearchSiteDropdown();
+				let packName = '';
+				let creatorName = '';
+				let source = '';
+
+				const row = window.spyData?.lastFocusedRow
+					|| document.querySelector('core-asset-list-row.focused, core-sample-asset-list-row.focused, .focused');
+				if (row) {
+					const fromRow = extractPackFromRow(row, { debug: true });
+					packName = fromRow.packName;
+					creatorName = fromRow.creatorName;
+					source = fromRow.source || 'row';
+				}
+
+				if ((!packName || !creatorName) && (isPackPage() || isCollectionPage())) {
+					const fromPage = extractPackFromPageHeader();
+					if (!packName) packName = fromPage.packName;
+					if (!creatorName) creatorName = fromPage.creatorName;
+					if (fromPage.packName || fromPage.creatorName) source = source || 'page-header';
+					console.log('[Spy Debug] Pack page header fallback', fromPage);
+				}
+
+				let query = buildRutrackerQuery(creatorName, packName);
+				const site = getSelectedSearchSite();
+				console.log('%c[Spy Debug] Pack search', 'color: #a78bfa; font-weight: bold;', {
+					site: site.id, creatorName, packName, source, query,
+					lastPackDebug: window.__spyLastPackDebug || null
+				});
+				if (!query) {
+					alert('Could not detect pack name for search.\n\nOpen DevTools Console and copy the [Spy Debug] Pack/author extract logs.');
+					return;
+				}
+
+				const url = site.buildUrl(query);
+				require('electron').shell.openExternal(url);
+			};
 			window.spyData = {
 				state: SpyState.HIDDEN, buffer: null, audioBuffer: null, ext: null,
 				hasFocus: false, lastFocusedRow: null,
 				assetType: null, fileBuffer: null, fileName: null, assetSourceUrl: null
 			};
-			window.spyAssetCache = new Map(); // name/uuid -> asset metadata from GraphQL
+			window.spyAssetCache = new Map(); // name/uuid/basename -> asset metadata from GraphQL
+			window.spyPackCache = new Map(); // pack uuid/name -> pack metadata
 
 			function renderButton() {
+				syncRutrackerButton();
 				const btn = document.getElementById('splice-spy-btn');
 				const btnWav = document.getElementById('splice-spy-btn-wav');
 				const btnGet = document.getElementById('splice-get-pack-btn');
@@ -407,7 +821,7 @@ fs.writeFileSync(p, html);
 				const { state, hasFocus, ext, audioBuffer, buffer, fileBuffer, assetSourceUrl, assetType } = window.spyData;
 				const fileAvailable = !!(fileBuffer || assetSourceUrl);
 				const shouldShow = hasFocus && state !== SpyState.HIDDEN && !shouldHideDownloadsForPresets();
-				const isPackRunning = btnGet && (btnGet.classList.contains('loading') || btnGet.classList.contains('success'));
+				const isPackRunning = isBulkDownloadActive();
 				const allBtns = [btn, btnWav].filter(Boolean);
 
 				// Prefer real MIDI/preset file, then WAV, then MP3.
@@ -493,11 +907,13 @@ fs.writeFileSync(p, html);
 				const packWrapper = document.querySelector('.splice-get-pack-btn-wrapper');
 				if (btnGet && packWrapper) {
 					const showBulk = shouldShowBulkButton();
-					if (showBulk || btnGet.classList.contains('loading')) {
+					const bulkActive = isBulkDownloadActive();
+					if (showBulk || bulkActive) {
 						packWrapper.classList.add('visible');
-						if (!btnGet.classList.contains('loading')) syncPagesButtonLabel();
+						if (!bulkActive) syncPagesButtonLabel();
 					} else packWrapper.classList.remove('visible');
 				}
+				syncRutrackerButton();
 			}, 200);
 
 			function isPackPage() {
@@ -566,6 +982,21 @@ fs.writeFileSync(p, html);
 				return nums.length ? Math.max(...nums) : 1;
 			}
 
+			function getNextPageButton() {
+				return document.querySelector('[aria-label="Next Page"], [data-qa="pagination.next-button"], [data-qa="next-button-event"]');
+			}
+
+			function isNextPageAvailable(pageNum) {
+				const link = Array.from(document.querySelectorAll('.page-select-link'))
+					.find(l => l.textContent.trim() === String(pageNum));
+				if (link) return true;
+				if (pageNum > getDetectedTotalPages()) return false;
+				const nextBtn = getNextPageButton();
+				if (!nextBtn) return false;
+				if (nextBtn.disabled || nextBtn.classList.contains('disabled') || nextBtn.getAttribute('aria-disabled') === 'true') return false;
+				return true;
+			}
+
 			function getPagesButtonLabel() {
 				if (isCollectionPage()) return 'Get Collection';
 				if (isPackPage()) return 'Get Pack';
@@ -610,7 +1041,7 @@ fs.writeFileSync(p, html);
 				if (!btn || !action) return;
 				btn.classList.add('loading');
 				btn.classList.remove('success', 'has-stepper');
-				action.innerHTML = `<span>Downloading ${done}/${total}</span>`;
+				action.innerHTML = `${ICON_DOWNLOAD} <span>Downloading ${done}/${total}</span>`;
 				let cancel = document.getElementById('splice-get-pack-cancel');
 				if (!cancel) {
 					cancel = document.createElement('button');
@@ -626,6 +1057,7 @@ fs.writeFileSync(p, html);
 					};
 					btn.appendChild(cancel);
 				}
+				renderButton();
 			}
 
 			function showBulkDownloaded() {
@@ -637,6 +1069,7 @@ fs.writeFileSync(p, html);
 				btn.classList.remove('loading', 'has-stepper');
 				btn.classList.add('success');
 				action.innerHTML = `${ICON_CHECK} <span>Downloaded</span>`;
+				renderButton();
 			}
 
 			function restoreBulkButton() {
@@ -681,22 +1114,103 @@ fs.writeFileSync(p, html);
 				return (name || '').toLowerCase().replace(/\.(serumpreset|mid|midi|wav|mp3|aiff|flac|fxp|m4a)$/i, '');
 			}
 
-			function cacheAssetFromGraphql(asset) {
-				if (!asset || !asset.name) return;
+			function assetBasename(name) {
+				return String(name || '').split(/[\\/]/).pop() || '';
+			}
+
+			function toPackMeta(pack) {
+				if (!pack || typeof pack !== 'object') return null;
+				const name = pack.name || pack.title || null;
+				const providerName = pack.provider?.name || pack.provider_name || pack.attributionName || null;
+				if (!name && !providerName) return null;
+				return {
+					uuid: pack.uuid || null,
+					name,
+					provider: providerName ? { name: providerName } : null
+				};
+			}
+
+			function extractPackFromAssetNode(asset) {
+				if (!asset || typeof asset !== 'object') return null;
+				if (asset.pack) return toPackMeta(asset.pack) || asset.pack;
+				const parents = asset.parents?.items || asset.parents;
+				if (Array.isArray(parents)) {
+					const pack = parents.find(p => p && (p.__typename === 'PackAsset' || p.provider || (p.name && !p.files)));
+					if (pack) return toPackMeta(pack);
+				}
+				for (const key of ['parent', 'parent_asset', 'parentAsset', 'pack_asset', 'packAsset']) {
+					if (asset[key] && (asset[key].__typename === 'PackAsset' || asset[key].provider || asset[key].name)) {
+						return toPackMeta(asset[key]);
+					}
+				}
+				return null;
+			}
+
+			function shouldCacheGraphqlNode(node) {
+				if (!node?.name) return false;
+				const t = String(node.__typename || node.asset_type_slug || '').toLowerCase();
+				if (!t && !Array.isArray(node.files) && !node.uuid) return false;
+				if (/(provider|permission|taxonomy|plangroup|user|genre|instrument|attribute)/.test(t)) return false;
+				if (t === 'packasset' || t.includes('pack')) return true;
+				if (t.includes('sample') || t.includes('midi') || t.includes('preset')) return true;
+				if (Array.isArray(node.files)) return true;
+				if (node.uuid && (node.asset_type_slug || node.parents || node.pack)) return true;
+				return false;
+			}
+
+			function findPackInObject(node) {
+				if (!node || typeof node !== 'object') return null;
+				if (node.__typename === 'PackAsset') return node;
+				if (node.pack && (node.pack.__typename === 'PackAsset' || node.pack.provider || node.pack.name)) return node.pack;
+				const parents = node.parents?.items || node.parents;
+				if (Array.isArray(parents)) {
+					const pack = parents.find(p => p && (p.__typename === 'PackAsset' || p.provider));
+					if (pack) return pack;
+				}
+				for (const key of Object.keys(node)) {
+					const v = node[key];
+					if (!v || typeof v !== 'object' || Array.isArray(v)) continue;
+					if (v.__typename === 'PackAsset') return v;
+					if ((key === 'pack' || key === 'parent' || key === 'parent_asset') && (v.provider || v.name)) return v;
+				}
+				return null;
+			}
+
+			function cacheAssetFromGraphql(asset, inheritedPack = null) {
+				if (!asset || !asset.name || !shouldCacheGraphqlNode(asset)) return;
+				const pack = extractPackFromAssetNode(asset) || toPackMeta(inheritedPack) || toPackMeta(asset.__typename === 'PackAsset' ? asset : null);
+				const base = assetBasename(asset.name);
+				const prev = window.spyAssetCache.get(normalizeAssetKey(base))
+					|| window.spyAssetCache.get(normalizeAssetKey(asset.name))
+					|| (asset.uuid ? window.spyAssetCache.get(asset.uuid) : null);
+				const packMeta = pack || prev?.pack || null;
+
+				// Keep a dedicated pack index for later attachment
+				if ((asset.__typename === 'PackAsset' || /pack/i.test(asset.__typename || '')) && packMeta) {
+					const packEntry = { ...packMeta, files: Array.isArray(asset.files) ? asset.files : [] };
+					if (packMeta.uuid) window.spyPackCache.set(packMeta.uuid, packEntry);
+					if (packMeta.name) window.spyPackCache.set(packMeta.name.toLowerCase(), packEntry);
+				}
+
 				const entry = {
 					uuid: asset.uuid,
 					name: asset.name,
 					__typename: asset.__typename,
 					asset_type_slug: asset.asset_type_slug,
-					files: Array.isArray(asset.files) ? asset.files : [],
+					files: Array.isArray(asset.files) ? asset.files : (prev?.files || []),
 					licensed: !!asset.licensed,
-					device: asset.device || null
+					device: asset.device || null,
+					pack: packMeta
 				};
-				const keys = [asset.name.toLowerCase(), normalizeAssetKey(asset.name)];
+				const keys = [
+					asset.name.toLowerCase(),
+					normalizeAssetKey(asset.name),
+					base.toLowerCase(),
+					normalizeAssetKey(base)
+				];
 				if (asset.uuid) keys.push(asset.uuid);
-				const prev = window.spyAssetCache.get(normalizeAssetKey(asset.name));
 				keys.filter(Boolean).forEach(k => window.spyAssetCache.set(k, entry));
-				if (!prev || (entry.files?.length && entry.files.length !== (prev.files?.length || 0))) {
+				if (!prev || entry.pack?.name !== prev.pack?.name || (entry.files?.length && entry.files.length !== (prev.files?.length || 0))) {
 					const fileSummary = (entry.files || []).map(f => ({
 						slug: f?.asset_file_type_slug,
 						hasUrl: !!f?.url,
@@ -704,27 +1218,53 @@ fs.writeFileSync(p, html);
 						path: f?.path,
 						url: f?.url || null
 					}));
-					console.log('[Spy Debug] Cached asset from network', entry.name, entry.__typename || entry.asset_type_slug, fileSummary);
+					console.log('[Spy Debug] Cached asset from network', entry.name, entry.__typename || entry.asset_type_slug, fileSummary, {
+						pack: entry.pack?.name || null,
+						provider: entry.pack?.provider?.name || null,
+						basename: base
+					});
 				}
 			}
 
-			function walkGraphqlForAssets(node, depth = 0) {
+			function walkGraphqlForAssets(node, depth = 0, inheritedPack = null) {
 				if (!node || typeof node !== 'object' || depth > 12) return;
-				if (Array.isArray(node)) { node.forEach(n => walkGraphqlForAssets(n, depth + 1)); return; }
-				if (node.name && (Array.isArray(node.files) || node.__typename || node.uuid)) cacheAssetFromGraphql(node);
+				if (Array.isArray(node)) {
+					node.forEach(n => walkGraphqlForAssets(n, depth + 1, inheritedPack));
+					return;
+				}
+
+				const localPack = findPackInObject(node) || inheritedPack;
+				if (shouldCacheGraphqlNode(node)) cacheAssetFromGraphql(node, localPack);
+
 				for (const key of Object.keys(node)) {
-					try { walkGraphqlForAssets(node[key], depth + 1); } catch (_) {}
+					try { walkGraphqlForAssets(node[key], depth + 1, localPack); } catch (_) {}
 				}
 			}
 
 			function findCachedAsset(name) {
 				if (!name) return null;
 				const lower = name.toLowerCase();
+				const base = assetBasename(name).toLowerCase();
 				const norm = normalizeAssetKey(name);
-				if (window.spyAssetCache.has(lower)) return window.spyAssetCache.get(lower);
-				if (window.spyAssetCache.has(norm)) return window.spyAssetCache.get(norm);
+				const baseNorm = normalizeAssetKey(base);
+				for (const key of [lower, base, norm, baseNorm]) {
+					if (key && window.spyAssetCache.has(key)) {
+						const hit = window.spyAssetCache.get(key);
+						if (hit && !hit.pack) {
+							// Late attach: if a pack was cached separately under parents/uuid later
+							const packUuid = hit.packUuid || hit.parent_asset_uuid;
+							if (packUuid && window.spyPackCache.has(packUuid)) {
+								hit.pack = window.spyPackCache.get(packUuid);
+							}
+						}
+						return hit;
+					}
+				}
 				for (const asset of window.spyAssetCache.values()) {
-					if (normalizeAssetKey(asset.name) === norm) return asset;
+					const assetBase = assetBasename(asset.name).toLowerCase();
+					if (normalizeAssetKey(asset.name) === norm || normalizeAssetKey(assetBase) === baseNorm || assetBase === base) {
+						return asset;
+					}
 				}
 				return null;
 			}
@@ -850,6 +1390,9 @@ fs.writeFileSync(p, html);
 						licensed: val.licensed,
 						files: val.files,
 						device: val.device,
+						pack: val.pack || null,
+						parents: val.parents || null,
+						provider: val.provider || null,
 						keys: Object.keys(val).slice(0, 40)
 					});
 				};
@@ -899,6 +1442,7 @@ fs.writeFileSync(p, html);
 				const source = getSourceFile(cached) || getSourceFile({ files });
 				const preview = getPreviewFile(cached) || getPreviewFile({ files });
 				const cacheKeys = [...window.spyAssetCache.keys()].slice(0, 30);
+				const packInfo = extractPackFromRow(row, { debug: true });
 
 				console.log('%c[Spy Debug] Selected asset', 'color: #fbbf24; font-weight: bold;');
 				console.table([{
@@ -908,6 +1452,9 @@ fs.writeFileSync(p, html);
 					uuid: cached?.uuid || ngAssets[0]?.uuid || null,
 					typename: cached?.__typename || ngAssets[0]?.__typename || null,
 					licensed: cached?.licensed ?? ngAssets[0]?.licensed ?? null,
+					packName: packInfo.packName || null,
+					creatorName: packInfo.creatorName || null,
+					packSource: packInfo.source || null,
 					filesCount: files.length,
 					hasSourceUrl: !!source?.url,
 					hasPreviewUrl: !!preview?.url,
@@ -919,11 +1466,16 @@ fs.writeFileSync(p, html);
 					cacheSize: window.spyAssetCache.size
 				}]);
 				console.log('[Spy Debug] files[]', files);
-				console.log('[Spy Debug] ng-extracted candidates', ngAssets);
+				console.log('[Spy Debug] ng-extracted candidates', ngAssets.map(a => ({
+					...a,
+					pack: a.pack || null,
+					parents: a.parents || null,
+					provider: a.provider || null
+				})));
 				console.log('[Spy Debug] cache keys (first 30)', cacheKeys);
 				console.log('[Spy Debug] spyData', { ...window.spyData, buffer: !!window.spyData.buffer, audioBuffer: !!window.spyData.audioBuffer, fileBuffer: !!window.spyData.fileBuffer && window.spyData.fileBuffer.byteLength });
 				console.log('[Spy Debug] extras', extra);
-				return { name, kind, cached, ngAssets, files, source, preview };
+				return { name, kind, cached, ngAssets, files, source, preview, packInfo };
 			}
 
 			window.spyDebugSelected = function() {
@@ -933,6 +1485,15 @@ fs.writeFileSync(p, html);
 					return null;
 				}
 				return debugSelectedAsset(row, { manual: true });
+			};
+
+			window.spyDebugPack = function() {
+				const row = window.spyData.lastFocusedRow || document.querySelector('core-asset-list-row.focused, .focused');
+				if (!row) {
+					console.warn('[Spy Debug] No focused row. Select a sound first.');
+					return null;
+				}
+				return extractPackFromRow(row, { debug: true });
 			};
 
 			async function applyResolvedAsset(row, asset, name) {
@@ -1049,7 +1610,12 @@ fs.writeFileSync(p, html);
 
 				const autoAllPages = isPackOrCollectionPage();
 				const selectedCount = pageInput ? parseInt(pageInput.value, 10) || 1 : 1;
-				let maxPages = autoAllPages ? getDetectedTotalPages() : selectedCount;
+				const availablePages = Math.max(1, getDetectedTotalPages());
+				let maxPages = autoAllPages ? availablePages : Math.min(selectedCount, availablePages);
+				if (!autoAllPages && selectedCount > availablePages) {
+					console.log(`[Spy] Requested ${selectedCount} pages but only ${availablePages} available — clamping`);
+					if (pageInput) pageInput.value = String(availablePages);
+				}
 				const packName = getPackName();
 				let done = 0;
 				let total = getListedSampleTotal(maxPages);
@@ -1065,12 +1631,16 @@ fs.writeFileSync(p, html);
 					};
 
 					const goToPage = async (expectedNextPage) => {
+						if (!isNextPageAvailable(expectedNextPage)) {
+							console.log(`[Spy] Page ${expectedNextPage} is not available`);
+							return false;
+						}
 						const targetLink = Array.from(document.querySelectorAll('.page-select-link'))
 							.find(l => l.textContent.trim() === expectedNextPage.toString());
 						if (targetLink) {
 							targetLink.click();
 						} else {
-							const nextBtn = document.querySelector('[aria-label="Next Page"], [data-qa="pagination.next-button"], [data-qa="next-button-event"]');
+							const nextBtn = getNextPageButton();
 							if (nextBtn && !nextBtn.disabled && !nextBtn.classList.contains('disabled') && nextBtn.getAttribute('aria-disabled') !== 'true') {
 								nextBtn.click();
 							} else {
@@ -1082,11 +1652,12 @@ fs.writeFileSync(p, html);
 							await new Promise(r => setTimeout(r, 250));
 							wait++;
 						}
+						if (getSelectedPage() !== expectedNextPage) return false;
 						await new Promise(r => setTimeout(r, 2000));
 						return getSelectedPage() === expectedNextPage;
 					};
 
-					console.log(`[Spy] Starting batch download. autoAll=${autoAllPages}, pages=${maxPages}, total=${total}, current=${getSelectedPage()}`);
+					console.log(`[Spy] Starting batch download. autoAll=${autoAllPages}, pages=${maxPages}, available=${availablePages}, total=${total}, current=${getSelectedPage()}`);
 
 					if (getSelectedPage() !== 1) {
 						console.log('[Spy] Not on page 1. Navigating to page 1...');
@@ -1107,10 +1678,12 @@ fs.writeFileSync(p, html);
 					let currentPage = 1;
 
 					while (!window.isGetPackCancelled) {
-						if (autoAllPages) maxPages = Math.max(maxPages, getDetectedTotalPages());
-						if (!autoAllPages && currentPage > maxPages) break;
+						const detectedNow = Math.max(1, getDetectedTotalPages());
+						if (autoAllPages) maxPages = Math.max(maxPages, detectedNow);
+						else maxPages = Math.min(selectedCount, detectedNow);
+						if (currentPage > maxPages) break;
 
-						console.log(`[Spy] Processing page ${currentPage}/${autoAllPages ? maxPages : selectedCount}`);
+						console.log(`[Spy] Processing page ${currentPage}/${maxPages}`);
 						let rows = [];
 						let waitAttempts = 0;
 						while (rows.length === 0 && waitAttempts < 10) {
@@ -1178,19 +1751,19 @@ fs.writeFileSync(p, html);
 						if (window.isGetPackCancelled) break;
 
 						const expectedNextPage = currentPage + 1;
-						const nextBtn = document.querySelector('[aria-label="Next Page"], [data-qa="pagination.next-button"], [data-qa="next-button-event"]');
-						const nextEnabled = !!(nextBtn && !nextBtn.disabled && !nextBtn.classList.contains('disabled') && nextBtn.getAttribute('aria-disabled') !== 'true');
-						const detected = getDetectedTotalPages();
-						const shouldContinue = autoAllPages
-							? (expectedNextPage <= detected || nextEnabled)
-							: expectedNextPage <= maxPages;
-
-						if (!shouldContinue) break;
+						if (expectedNextPage > maxPages || !isNextPageAvailable(expectedNextPage)) {
+							if (expectedNextPage <= selectedCount && !autoAllPages) {
+								console.log(`[Spy] Page ${expectedNextPage} unavailable — auto-cancelling remaining pages`);
+								window.isGetPackCancelled = true;
+							}
+							break;
+						}
 
 						console.log(`[Spy] Moving to page ${expectedNextPage}`);
 						const moved = await goToPage(expectedNextPage);
 						if (!moved) {
-							console.log('[Spy] No more pages or next navigation failed');
+							console.log('[Spy] Next page navigation failed — auto-cancelling');
+							window.isGetPackCancelled = true;
 							break;
 						}
 						currentPage = expectedNextPage;
@@ -1218,8 +1791,6 @@ fs.writeFileSync(p, html);
 						const dest = path.join(os.homedir(), 'Downloads', customFilename || `splice_${Date.now()}.wav`);
 						console.log(`[Spy] Copying local file ${localPath} to ${dest}`);
 						fs.copyFileSync(localPath, dest);
-						const btn = document.getElementById('splice-spy-btn');
-						if (btn) { const old = btn.innerHTML; btn.innerHTML = '<span>Saved!</span>'; setTimeout(() => btn.innerHTML = old, 2000); }
 						return;
 					} catch(e) {
 						console.error(`[Spy] Error copying local file:`, e);
@@ -1233,13 +1804,13 @@ fs.writeFileSync(p, html);
 				console.log(`[Spy] Saving MP3: ${customFilename}, Buffer size: ${window.spyData.buffer.byteLength}`);
 				const result = await ipcRenderer.invoke('antigravity-save-file', customFilename || 'audio.mp3', window.spyData.buffer);
 				console.log(`[Spy] IPC Save result (MP3):`, result);
-				
-				const btn = document.getElementById('splice-spy-btn');
-				if (btn) { 
-					const old = btn.innerHTML; 
-					if (result && result.success) btn.innerHTML = '<span>Saved!</span>';
-					else btn.innerHTML = '<span>Error!</span>';
-					setTimeout(() => btn.innerHTML = old, 2000); 
+				if (!result || !result.success) {
+					const btn = document.getElementById('splice-spy-btn');
+					if (btn) {
+						const old = btn.innerHTML;
+						btn.innerHTML = '<span>Error!</span>';
+						setTimeout(() => btn.innerHTML = old, 2000);
+					}
 				}
 			};
 
@@ -1299,10 +1870,10 @@ fs.writeFileSync(p, html);
 			window.downloadLastAudioWav = async function(customFilename = null) {
 				if (!customFilename) customFilename = window.spyData.lastClickedFilename || window.spyData.fileName;
 				const btn = document.getElementById('splice-spy-btn-wav');
-				const flash = (ok) => {
+				const flashError = () => {
 					if (!btn) return;
 					const old = btn.innerHTML;
-					btn.innerHTML = ok ? '<span>Saved!</span>' : '<span>Error!</span>';
+					btn.innerHTML = '<span>Error!</span>';
 					setTimeout(() => btn.innerHTML = old, 2000);
 				};
 
@@ -1320,11 +1891,11 @@ fs.writeFileSync(p, html);
 						const fullPath = require('path').join(getPackName(), filename);
 						console.log(`[Spy] Saving selected ${window.spyData.assetType} file: ${fullPath}`);
 						const result = await saveBinaryFile(fullPath, buffer);
-						flash(result && result.success);
+						if (!result || !result.success) flashError();
 						return;
 					} catch (err) {
 						console.error('[Spy] Selected file download failed:', err);
-						flash(false);
+						flashError();
 						return;
 					}
 				}
@@ -1333,7 +1904,7 @@ fs.writeFileSync(p, html);
 				
 				if (!window.spyData.audioBuffer) {
 					console.error('[Spy] Cannot download: no source file or audioBuffer available.');
-					flash(false);
+					flashError();
 					return;
 				}
 				
@@ -1344,7 +1915,7 @@ fs.writeFileSync(p, html);
 				console.log(`[Spy] Attempting to save individual WAV: ${fullPath}, Buffer size: ${wavBuffer.byteLength}`);
 				const result = await saveBinaryFile(fullPath, wavBuffer);
 				console.log(`[Spy] IPC Save result:`, result);
-				flash(result && result.success);
+				if (!result || !result.success) flashError();
 			};
 
 			function clampPageCount() {
@@ -1372,15 +1943,14 @@ fs.writeFileSync(p, html);
 
 				const btnWav = document.createElement('button');
 				btnWav.id = 'splice-spy-btn-wav';
-				btnWav.className = 'spy-btn-class spy-d-none';
-				btnWav.style.backgroundColor = '#8B5CF6';
-				btnWav.innerHTML = `${ICON_DOWNLOAD} <span>Selected</span> <div class="spy-spinner"></div>`;
+				btnWav.className = 'spy-btn-class spy-btn-wav spy-d-none';
+				btnWav.innerHTML = `${ICON_DOWNLOAD} <span>WAV</span> <div class="spy-spinner"></div>`;
 				btnWav.onclick = () => window.downloadLastAudioWav();
 
 				const btn = document.createElement('button');
 				btn.id = 'splice-spy-btn';
 				btn.className = 'spy-btn-class spy-d-none';
-				btn.innerHTML = `${ICON_DOWNLOAD} <span>Selected</span> <div class="spy-spinner"></div>`;
+				btn.innerHTML = `${ICON_DOWNLOAD} <span>WAV</span> <div class="spy-spinner"></div>`;
 				btn.onclick = () => window.downloadLastAudio();
 
 				const wrapper = document.createElement('div');
@@ -1425,11 +1995,60 @@ fs.writeFileSync(p, html);
 				arrows.append(upBtn, downBtn);
 				stepper.append(pageInput, arrows);
 				packBtn.append(action, stepper);
+				
+				const searchWrap = document.createElement('div');
+				searchWrap.id = 'splice-search-btn-wrap';
+
+				const rtBtn = document.createElement('button');
+				rtBtn.id = 'splice-rt-btn';
+				rtBtn.type = 'button';
+				rtBtn.title = 'Search Rutracker';
+				rtBtn.innerHTML = `${ICON_SEARCH} <span>Rutracker</span>`;
+				rtBtn.onclick = (e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					window.openRutrackerSearch();
+				};
+
+				const menuBtn = document.createElement('button');
+				menuBtn.id = 'splice-search-menu-btn';
+				menuBtn.type = 'button';
+				menuBtn.title = 'Choose search site';
+				menuBtn.setAttribute('aria-label', 'Choose search site');
+				menuBtn.innerHTML = ICON_CHEVRON_DOWN;
+				menuBtn.onclick = (e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					toggleSearchSiteDropdown();
+				};
+
+				const dropdown = document.createElement('div');
+				dropdown.id = 'splice-search-dropdown';
+				SEARCH_SITES.forEach(site => {
+					const item = document.createElement('button');
+					item.type = 'button';
+					item.dataset.site = site.id;
+					item.innerHTML = `<span>${site.label}</span><span class="spy-site-check">${ICON_CHECK}</span>`;
+					item.onclick = (e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						setSelectedSearchSite(site.id);
+						closeSearchSiteDropdown();
+					};
+					dropdown.appendChild(item);
+				});
+
+				searchWrap.append(rtBtn, menuBtn, dropdown);
+				document.addEventListener('click', (e) => {
+					if (!searchWrap.contains(e.target)) closeSearchSiteDropdown();
+				});
+
 				wrapper.appendChild(packBtn);
 
-				container.append(wrapper, btn, btnWav, infoBtn);
+				container.append(searchWrap, wrapper, btn, btnWav, infoBtn);
 				document.body.appendChild(container);
 				renderButton();
+				syncRutrackerButton();
 
 				require('electron').ipcRenderer.on('antigravity-devtools-state', (e, open) => {
 					infoBtn.style.color = open ? '#aaff00' : 'rgba(255,255,255,0.5)';
