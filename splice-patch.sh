@@ -80,13 +80,21 @@ fi
 INDEX_JS="$UNPACKED_PATH/index.js"
 if [ -f "$INDEX_JS" ]; then
     echo -e "${CYAN}Injecting IPC handlers into index.js...${NC}"
-    
-    # Check if already injected
+
+    # Remove previous injection so re-runs pick up updates
     if grep -q "antigravity-save-file" "$INDEX_JS"; then
-        echo -e "${YELLOW}! IPC handlers already exist in index.js, skipping.${NC}"
-    else
-        # Prepend the IPC logic at the top of the file
-        cat << 'EOF' > index.js.tmp
+        echo -e "${YELLOW}! Existing IPC handlers found, replacing...${NC}"
+        node -e "
+const fs = require('fs');
+const p = process.argv[1];
+let c = fs.readFileSync(p, 'utf8');
+c = c.replace(/try \{\s*const \{ app, ipcMain, shell \} = require\('electron'\);[\s\S]*?\} catch \(e\) \{\}\s*/m, '');
+fs.writeFileSync(p, c);
+" "$INDEX_JS"
+    fi
+
+    # Prepend the IPC logic at the top of the file
+    cat << 'EOF' > index.js.tmp
 'use strict';
 try {
 	const { app, ipcMain, shell } = require('electron');
@@ -108,6 +116,7 @@ try {
 	ipcMain.handle('antigravity-save-file', async (e, filename, buffer) => {
 		try {
 			const filePath = path.join(app.getPath('downloads'), filename);
+			fs.mkdirSync(path.dirname(filePath), { recursive: true });
 			fs.writeFileSync(filePath, Buffer.from(buffer));
 			shell.showItemInFolder(filePath);
 			return { success: true, path: filePath };
@@ -117,29 +126,38 @@ try {
 	});
 } catch (e) {}
 EOF
-        # Use Node for portable 'use strict' removal to avoid sed -i differences
-        node -e "const fs = require('fs'); const p = process.argv[1]; let c = fs.readFileSync(p, 'utf8'); fs.writeFileSync(p, c.replace(/'use strict';/, ''));" "$INDEX_JS"
-        cat "$INDEX_JS" >> index.js.tmp
-        mv index.js.tmp "$INDEX_JS"
-        echo -e "${GREEN}✓ index.js patched${NC}"
-    fi
+    # Use Node for portable 'use strict' removal to avoid sed -i differences
+    node -e "const fs = require('fs'); const p = process.argv[1]; let c = fs.readFileSync(p, 'utf8'); fs.writeFileSync(p, c.replace(/'use strict';/, ''));" "$INDEX_JS"
+    cat "$INDEX_JS" >> index.js.tmp
+    mv index.js.tmp "$INDEX_JS"
+    echo -e "${GREEN}✓ index.js patched${NC}"
 fi
 
 # 2. Inject into index.html (Renderer Process)
 INDEX_HTML="$UNPACKED_PATH/desktop-main/index.html"
 if [ -f "$INDEX_HTML" ]; then
     echo -e "${CYAN}Injecting Audio Spy into index.html...${NC}"
-    
-    # Check if already injected
+
+    # Remove previous injection so re-runs pick up updates
     if grep -q "Audio Spy Injected" "$INDEX_HTML"; then
-        echo -e "${YELLOW}! Audio Spy already injected in index.html, skipping.${NC}"
-    else
-        # We'll insert our script right after <head>
-        # Prepare the script content
-        cat << 'EOF' > script.tmp
-	<head>
-		<script>
-			console.log('%c[Spy] Audio Spy Injected v7 (Direct Download & State)', 'color: cyan; font-size: 20px; font-weight: bold;');
+        echo -e "${YELLOW}! Existing Audio Spy found, replacing...${NC}"
+        node -e "
+const fs = require('fs');
+const p = process.argv[1];
+let html = fs.readFileSync(p, 'utf8');
+// Remove nested injected <head><script>...Audio Spy...</script> block
+html = html.replace(/\n?\t<head>\s*<script>[\s\S]*?Audio Spy Injected[\s\S]*?<\/script>\s*(?=<(?!\/head>))/m, '\n');
+// Also handle case where injection is a bare <script> after <head>
+html = html.replace(/<script>[\s\S]*?Audio Spy Injected[\s\S]*?<\/script>\s*/m, '');
+fs.writeFileSync(p, html);
+" "$INDEX_HTML"
+    fi
+
+    # We'll insert our script right after <head>
+    # Prepare the script content
+    cat << 'EOF' > script.tmp
+	<script>
+			console.log('%c[Spy] Audio Spy Injected v8 (WAV-first Download)', 'color: cyan; font-size: 20px; font-weight: bold;');
 
 			const ICON_DOWNLOAD = `<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><use xlink:href="#icon-download"></use></svg>`;
 			const CSS_STYLES = `
@@ -245,31 +263,42 @@ if [ -f "$INDEX_HTML" ]; then
 				const btnWav = document.getElementById('splice-spy-btn-wav');
 				const btnGet = document.getElementById('splice-get-pack-btn');
 				if (!btn) return;
-				const { state, hasFocus, ext } = window.spyData;
+				const { state, hasFocus, ext, audioBuffer, buffer } = window.spyData;
 				const shouldShow = hasFocus && state !== SpyState.HIDDEN;
 				const isPackRunning = btnGet && btnGet.classList.contains('loading');
-				
-				const btns = [btn, btnWav].filter(Boolean);
+				const allBtns = [btn, btnWav].filter(Boolean);
+
+				// Prefer WAV; fall back to MP3 only when WAV data is unavailable.
+				const wavAvailable = !!audioBuffer;
+				const mp3Available = !!buffer;
+				const preferWav = wavAvailable || state === SpyState.LOADING || (!mp3Available);
+				const activeBtn = preferWav ? btnWav : btn;
+				const inactiveBtn = preferWav ? btn : btnWav;
 
 				if (!shouldShow || isPackRunning) {
-					btns.forEach(b => b.classList.remove('visible'));
-					if (isPackRunning) btns.forEach(b => b.classList.add('hidden-by-pack'));
-					else btns.forEach(b => b.classList.remove('hidden-by-pack'));
-					setTimeout(() => { btns.forEach(b => { if (!b.classList.contains('visible')) b.classList.add('spy-d-none'); }); }, 300);
+					allBtns.forEach(b => b.classList.remove('visible'));
+					if (isPackRunning) allBtns.forEach(b => b.classList.add('hidden-by-pack'));
+					else allBtns.forEach(b => b.classList.remove('hidden-by-pack'));
+					setTimeout(() => { allBtns.forEach(b => { if (!b.classList.contains('visible')) b.classList.add('spy-d-none'); }); }, 300);
 					return;
 				}
 
-				btns.forEach(b => {
-					b.classList.remove('hidden-by-pack', 'spy-d-none');
-					void b.offsetWidth;
-					b.classList.add('visible');
+				if (inactiveBtn) {
+					inactiveBtn.classList.remove('visible', 'loading');
+					inactiveBtn.classList.add('spy-d-none');
+				}
 
-					if (state === SpyState.LOADING) b.classList.add('loading');
+				if (activeBtn) {
+					activeBtn.classList.remove('hidden-by-pack', 'spy-d-none');
+					void activeBtn.offsetWidth;
+					activeBtn.classList.add('visible');
+
+					if (state === SpyState.LOADING) activeBtn.classList.add('loading');
 					else if (state === SpyState.READY) {
-						b.classList.remove('loading');
-						b.title = `Download ${ext ? ext.toUpperCase() : ''}`;
+						activeBtn.classList.remove('loading');
+						activeBtn.title = `Download ${preferWav ? 'WAV' : (ext ? ext.toUpperCase() : 'MP3')}`;
 					}
-				});
+				}
 			}
 
 			function updateState(newState, data = null) {
@@ -291,6 +320,7 @@ if [ -f "$INDEX_HTML" ]; then
 						window.spyData.lastFocusedRow = row;
 						window.spyData.state = SpyState.LOADING;
 						window.spyData.buffer = null;
+						window.spyData.audioBuffer = null;
 						window.spyData.hasFocus = true;
 						renderButton();
 					}
@@ -302,7 +332,7 @@ if [ -f "$INDEX_HTML" ]; then
 				if (window.spyData.lastFocusedRow !== focusedEl) {
 					window.spyData.lastFocusedRow = focusedEl;
 					window.spyData.hasFocus = !!focusedEl;
-					if (focusedEl) { window.spyData.state = SpyState.LOADING; window.spyData.buffer = null; }
+					if (focusedEl) { window.spyData.state = SpyState.LOADING; window.spyData.buffer = null; window.spyData.audioBuffer = null; }
 					else window.spyData.state = SpyState.HIDDEN;
 					renderButton();
 				}
@@ -326,58 +356,170 @@ if [ -f "$INDEX_HTML" ]; then
 				return name.endsWith('.mp3') ? name : name + '.mp3';
 			}
 
+			function getPackName() {
+				const h1 = document.querySelector('h1, .sounds-pack-header h1, core-entity-header h1');
+				if (h1 && h1.textContent) return h1.textContent.trim().replace(/[^a-z0-9 _-]/gi, '_');
+				const titleTitle = document.title.split('|')[0].trim();
+				return titleTitle ? titleTitle.replace(/[^a-z0-9 _-]/gi, '_') : 'Splice_Downloads';
+			}
+
 			window.getPack = async function() {
 				const btn = document.getElementById('splice-get-pack-btn');
+				const pageInput = document.getElementById('splice-get-pack-pages');
 				if (!btn) return;
 				if (btn.classList.contains('loading')) { window.isGetPackCancelled = true; return; }
+				
+				const maxPages = pageInput ? parseInt(pageInput.value, 10) || 1 : 1;
+				const packName = getPackName();
+
 				const originalHtml = btn.innerHTML;
 				btn.classList.add('loading');
 				btn.innerHTML = `<div class="spy-spinner"></div> <span style="margin-left:5px">Cancel</span>`;
 				window.isGetPackCancelled = false;
 				renderButton();
+				
 				try {
-					const rows = Array.from(document.querySelectorAll('core-asset-list-row'));
-					for (const row of rows) {
-						if (window.isGetPackCancelled) break;
-						const playBtn = row.querySelector('[data-qa="playPlaybackButton"]');
-						if (!playBtn) continue;
-						window.spyData.buffer = null;
-						row.scrollIntoView({ behavior: 'auto', block: 'center' });
-						await new Promise(r => setTimeout(r, 100));
-						const opts = { bubbles: true, cancelable: true, view: window };
-						row.dispatchEvent(new MouseEvent('click', opts));
-						playBtn.dispatchEvent(new MouseEvent('click', opts));
-						let attempts = 0;
-						while (!window.spyData.buffer && attempts < 25) {
-							if (window.isGetPackCancelled) break;
-							await new Promise(r => setTimeout(r, 200));
-							attempts++;
+					const getSelectedPage = () => {
+						const sel = document.querySelector('.page-select-link.selected');
+						return sel ? parseInt(sel.textContent.trim(), 10) : 1;
+					};
+
+					console.log(`[Spy] Starting batch download for ${maxPages} pages. Current page is ${getSelectedPage()}`);
+
+					if (getSelectedPage() !== 1) {
+						console.log('[Spy] Not on page 1. Navigating to page 1...');
+						const page1 = Array.from(document.querySelectorAll('.page-select-link')).find(l => l.textContent.trim() === '1');
+						if (page1) {
+							page1.click();
+							let wait = 0;
+							while (getSelectedPage() !== 1 && wait < 20) {
+								await new Promise(r => setTimeout(r, 250));
+								wait++;
+							}
+							await new Promise(r => setTimeout(r, 1500));
+						} else {
+							console.log('[Spy] Could not find page 1 link!');
 						}
-						if (window.spyData.buffer) await window.downloadLastAudio(getFilenameFromRow(row));
+					}
+
+					let currentPage = 1;
+
+					while (currentPage <= maxPages && !window.isGetPackCancelled) {
+						console.log(`[Spy] Processing page ${currentPage}`);
+						let rows = [];
+						let waitAttempts = 0;
+						while (rows.length === 0 && waitAttempts < 10) {
+							rows = Array.from(document.querySelectorAll('core-asset-list-row'));
+							if (rows.length === 0) await new Promise(r => setTimeout(r, 500));
+							waitAttempts++;
+						}
+
+						for (const row of rows) {
+							if (window.isGetPackCancelled) break;
+							const playBtn = row.querySelector('[data-qa="playPlaybackButton"]');
+							if (!playBtn) continue;
+							window.spyData.buffer = null;
+							window.spyData.audioBuffer = null;
+							row.scrollIntoView({ behavior: 'auto', block: 'center' });
+							await new Promise(r => setTimeout(r, 100));
+							const opts = { bubbles: true, cancelable: true, view: window };
+							row.dispatchEvent(new MouseEvent('click', opts));
+							playBtn.dispatchEvent(new MouseEvent('click', opts));
+							
+							let attempts = 0;
+							while (!window.spyData.audioBuffer && attempts < 25) {
+								if (window.isGetPackCancelled) break;
+								await new Promise(r => setTimeout(r, 200));
+								attempts++;
+							}
+							
+							if (window.spyData.audioBuffer && !window.isGetPackCancelled) {
+								let filename = getFilenameFromRow(row);
+								if (filename) filename = filename.replace(/\.mp3$/, '') + '.wav';
+								else filename = `audio_${Date.now()}.wav`;
+								
+								const wavBuffer = audioBufferToWav(window.spyData.audioBuffer);
+								const { ipcRenderer } = require('electron');
+								const fullPath = require('path').join(packName, filename);
+								
+								console.log(`[Spy] Saving batch WAV: ${fullPath}`);
+								const result = await ipcRenderer.invoke('antigravity-save-file', fullPath, wavBuffer);
+								if (!result || !result.success) console.error(`[Spy] Batch save failed for ${filename}:`, result);
+							}
+						}
+
+						if (window.isGetPackCancelled) break;
+
+						if (currentPage < maxPages) {
+							const expectedNextPage = currentPage + 1;
+							console.log(`[Spy] Moving to page ${expectedNextPage}`);
+							
+							const targetLink = Array.from(document.querySelectorAll('.page-select-link')).find(l => l.textContent.trim() === expectedNextPage.toString());
+							
+							if (targetLink) {
+								targetLink.click();
+							} else {
+								const nextBtn = document.querySelector('[aria-label="Next Page"], [data-qa="pagination.next-button"], [data-qa="next-button-event"]');
+								if (nextBtn && !nextBtn.disabled && !nextBtn.classList.contains('disabled')) {
+									nextBtn.click();
+								} else {
+									console.log('[Spy] No more pages or next button disabled');
+									break;
+								}
+							}
+							
+							let wait = 0;
+							while (getSelectedPage() !== expectedNextPage && wait < 20) {
+								await new Promise(r => setTimeout(r, 250));
+								wait++;
+							}
+							await new Promise(r => setTimeout(r, 2000));
+						}
+						currentPage++;
 					}
 				} finally {
 					btn.classList.remove('loading');
 					btn.innerHTML = originalHtml;
 					renderButton();
+					console.log('[Spy] Batch download finished or cancelled.');
 				}
 			};
 
 			window.downloadLastAudio = async function(customFilename = null) {
 				if (!customFilename) customFilename = window.spyData.lastClickedFilename;
+				
+				console.log('[Spy] downloadLastAudio (MP3) triggered.', { customFilename, hasBuffer: !!window.spyData.buffer });
+				
 				const localPath = window.spyData.localPath || document.body.getAttribute('data-spy-last-wav-path');
 				if (localPath) {
 					try {
 						const fs = require('fs'), path = require('path'), os = require('os');
 						const dest = path.join(os.homedir(), 'Downloads', customFilename || `splice_${Date.now()}.wav`);
+						console.log(`[Spy] Copying local file ${localPath} to ${dest}`);
 						fs.copyFileSync(localPath, dest);
 						const btn = document.getElementById('splice-spy-btn');
 						if (btn) { const old = btn.innerHTML; btn.innerHTML = '<span>Saved!</span>'; setTimeout(() => btn.innerHTML = old, 2000); }
 						return;
-					} catch(e) {}
+					} catch(e) {
+						console.error(`[Spy] Error copying local file:`, e);
+					}
 				}
-				if (!window.spyData.buffer) return;
+				if (!window.spyData.buffer) {
+					console.error('[Spy] Cannot download: window.spyData.buffer is null.');
+					return;
+				}
 				const { ipcRenderer } = require('electron');
-				await ipcRenderer.invoke('antigravity-save-file', customFilename || 'audio.mp3', window.spyData.buffer);
+				console.log(`[Spy] Saving MP3: ${customFilename}, Buffer size: ${window.spyData.buffer.byteLength}`);
+				const result = await ipcRenderer.invoke('antigravity-save-file', customFilename || 'audio.mp3', window.spyData.buffer);
+				console.log(`[Spy] IPC Save result (MP3):`, result);
+				
+				const btn = document.getElementById('splice-spy-btn');
+				if (btn) { 
+					const old = btn.innerHTML; 
+					if (result && result.success) btn.innerHTML = '<span>Saved!</span>';
+					else btn.innerHTML = '<span>Error!</span>';
+					setTimeout(() => btn.innerHTML = old, 2000); 
+				}
 			};
 
 			function audioBufferToWav(buffer) {
@@ -435,15 +577,35 @@ if [ -f "$INDEX_HTML" ]; then
 
 			window.downloadLastAudioWav = async function(customFilename = null) {
 				if (!customFilename) customFilename = window.spyData.lastClickedFilename;
-				if (!window.spyData.audioBuffer) return;
+				
+				console.log('[Spy] downloadLastAudioWav triggered.', { customFilename, hasAudioBuffer: !!window.spyData.audioBuffer });
+				
+				if (!window.spyData.audioBuffer) {
+					console.error('[Spy] Cannot download: window.spyData.audioBuffer is null.');
+					return;
+				}
 				
 				const wavBuffer = audioBufferToWav(window.spyData.audioBuffer);
 				const { ipcRenderer } = require('electron');
 				let filename = (customFilename || 'audio.mp3').replace(/\.mp3$/, '') + '.wav';
-				await ipcRenderer.invoke('antigravity-save-file', filename, wavBuffer);
+				const packName = getPackName();
+				const fullPath = require('path').join(packName, filename);
+				
+				console.log(`[Spy] Attempting to save individual WAV: ${fullPath}, Buffer size: ${wavBuffer.byteLength}`);
+				
+				const result = await ipcRenderer.invoke('antigravity-save-file', fullPath, wavBuffer);
+				console.log(`[Spy] IPC Save result:`, result);
 				
 				const btn = document.getElementById('splice-spy-btn-wav');
-				if (btn) { const old = btn.innerHTML; btn.innerHTML = '<span>Saved!</span>'; setTimeout(() => btn.innerHTML = old, 2000); }
+				if (btn) { 
+					const old = btn.innerHTML; 
+					if (result && result.success) {
+						btn.innerHTML = '<span>Saved!</span>'; 
+					} else {
+						btn.innerHTML = '<span>Error!</span>'; 
+					}
+					setTimeout(() => btn.innerHTML = old, 2000); 
+				}
 			};
 
 			function injectButton() {
@@ -476,6 +638,16 @@ if [ -f "$INDEX_HTML" ]; then
 
 				const wrapper = document.createElement('div');
 				wrapper.className = 'splice-get-pack-btn-wrapper';
+				
+				const pageInput = document.createElement('input');
+				pageInput.type = 'number';
+				pageInput.id = 'splice-get-pack-pages';
+				pageInput.value = '1';
+				pageInput.min = '1';
+				pageInput.style.cssText = 'width: 40px; height: 32px; text-align: center; border: 1px solid rgba(255,255,255,0.2); border-radius: 5px; background: rgba(0,0,0,0.5); color: #fff; margin-right: 4px; pointer-events: auto; outline: none; font-size: 14px;';
+				pageInput.title = 'Pages to download';
+
+				wrapper.appendChild(pageInput);
 				wrapper.appendChild(btnGetPack);
 
 				container.append(wrapper, btn, btnWav, infoBtn);
@@ -513,11 +685,10 @@ if [ -f "$INDEX_HTML" ]; then
 			};
 		</script>
 EOF
-        # Insert script after <head> using node for portability
-        node -e "const fs = require('fs'); const script = fs.readFileSync('script.tmp', 'utf8'); const p = process.argv[1]; let html = fs.readFileSync(p, 'utf8'); fs.writeFileSync(p, html.replace('<head>', '<head>\n' + script));" "$INDEX_HTML"
-        rm script.tmp
-        echo -e "${GREEN}✓ index.html patched${NC}"
-    fi
+    # Insert script after <head> using node for portability
+    node -e "const fs = require('fs'); const script = fs.readFileSync('script.tmp', 'utf8'); const p = process.argv[1]; let html = fs.readFileSync(p, 'utf8'); fs.writeFileSync(p, html.replace('<head>', '<head>\n' + script));" "$INDEX_HTML"
+    rm script.tmp
+    echo -e "${GREEN}✓ index.html patched${NC}"
 fi
 
 echo -e "\n${GREEN}Modification Complete!${NC}"
