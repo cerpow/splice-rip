@@ -60,6 +60,24 @@ if ! command -v npx &> /dev/null; then
     exit 1
 fi
 
+REOPEN_SPLICE=0
+if [[ "$TARGET_PATH" == *.app ]]; then
+    if pgrep -x "Splice" >/dev/null 2>&1; then
+        echo -e "${CYAN}Closing Splice before patching...${NC}"
+        osascript -e 'tell application "Splice" to quit' >/dev/null 2>&1 || true
+        for _ in $(seq 1 40); do
+            pgrep -x "Splice" >/dev/null 2>&1 || break
+            sleep 0.25
+        done
+        if pgrep -x "Splice" >/dev/null 2>&1; then
+            killall Splice >/dev/null 2>&1 || true
+            sleep 1
+        fi
+        echo -e "${GREEN}✓ Splice closed${NC}"
+    fi
+    REOPEN_SPLICE=1
+fi
+
 echo -e "${CYAN}Unpacking Splice app...${NC}"
 
 # Backup original asar if it exists
@@ -157,9 +175,12 @@ fs.writeFileSync(p, html);
     # Prepare the script content
     cat << 'EOF' > script.tmp
 	<script>
-			console.log('%c[Spy] Audio Spy Injected v8 (WAV-first Download)', 'color: cyan; font-size: 20px; font-weight: bold;');
+			console.log('%c[Spy] Audio Spy Injected v17 (Get Pack label)', 'color: cyan; font-size: 20px; font-weight: bold;');
 
 			const ICON_DOWNLOAD = `<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><use xlink:href="#icon-download"></use></svg>`;
+			const ICON_CHEVRON_UP = `<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M5 2.5L9 7H1L5 2.5z"/></svg>`;
+			const ICON_CHEVRON_DOWN = `<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M5 7.5L1 3h8L5 7.5z"/></svg>`;
+			const ICON_CHECK = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-7"/></svg>`;
 			const CSS_STYLES = `
     @keyframes spy-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     .spy-spinner {
@@ -171,6 +192,16 @@ fs.writeFileSync(p, html);
         animation: spy-spin 1s linear infinite;
         min-width: 14px;
     }
+
+    #splice-spy-container {
+        display: flex;
+        flex-direction: row;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 4px;
+        right: 22px;
+        bottom: 82px;
+    }
     
     .spy-btn-class {
         transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease, width 0.3s ease, background-color 0.2s;
@@ -179,7 +210,7 @@ fs.writeFileSync(p, html);
         pointer-events: none;
         overflow: hidden;
         white-space: nowrap;
-        display: flex;
+        display: none;
         align-items: center;
         justify-content: center;
         gap: 4px;
@@ -222,33 +253,138 @@ fs.writeFileSync(p, html);
         pointer-events: none;
     }
 
-    .splice-get-pack-btn-wrapper { display: flex; pointer-events: none; }
+    .splice-get-pack-btn-wrapper {
+        display: none;
+        align-items: center;
+    }
+    .splice-get-pack-btn-wrapper.visible {
+        display: flex;
+    }
+
     #splice-get-pack-btn {
-        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease, width 0.3s ease, background-color 0.2s;
-        transform: scale(0.7);
-        opacity: 0;
-        pointer-events: none;
+        display: flex;
+        align-items: stretch;
+        height: 32px;
+        background-color: #1253ff;
+        color: #fff;
+        border-radius: 5px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         overflow: hidden;
-        white-space: nowrap;
+        transition: opacity 0.2s ease, background-color 0.2s;
+    }
+    #splice-get-pack-btn.loading { opacity: 1; }
+    #splice-get-pack-btn.success {
+        background-color: #16a34a;
+    }
+
+    #splice-get-pack-action {
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 4px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        background-color: color(display-p3 0.77 0.04 0.68);
-        color: #fff;
         border: none;
+        background: transparent;
+        color: inherit;
         font-weight: 500;
         font-size: 14px;
         cursor: pointer;
-        height: 32px;
-        padding: 0 13px 0 8px;
-        border-radius: 5px;
+        padding: 0 10px 0 8px;
+        white-space: nowrap;
     }
-    #splice-get-pack-btn span { opacity: 1; transition: opacity 0.2s; }
-    #splice-get-pack-btn:hover span { opacity: 0.6; }
-    #splice-get-pack-btn.visible { transform: scale(1); opacity: 1; pointer-events: auto; }
-    #splice-get-pack-btn.visible.loading { width: auto; padding: 0 13px 0 8px; opacity: 0.9; }
+    #splice-get-pack-action span { opacity: 1; transition: opacity 0.2s; }
+    #splice-get-pack-btn:not(.loading):not(.success) #splice-get-pack-action:hover span { opacity: 0.6; }
+    #splice-get-pack-action svg { opacity: 0.7; transition: opacity 0.2s; }
+    #splice-get-pack-btn:not(.loading):not(.success) #splice-get-pack-action:hover svg { opacity: 0.4; }
+    #splice-get-pack-action .spy-spinner { display: none; margin: 0; }
+    #splice-get-pack-btn.loading #splice-get-pack-action {
+        cursor: default;
+        padding: 0 12px 0 10px;
+    }
+    #splice-get-pack-btn.loading .spy-page-stepper,
+    #splice-get-pack-btn.success .spy-page-stepper { display: none !important; }
+    #splice-get-pack-btn:not(.has-stepper) #splice-get-pack-action {
+        padding: 0 13px 0 8px;
+    }
+    #splice-get-pack-btn:not(.has-stepper) .spy-page-stepper {
+        display: none;
+    }
+    #splice-get-pack-cancel {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        border-left: 1px solid rgba(255,255,255,0.22);
+        background: rgba(0,0,0,0.18);
+        color: #fff;
+        font-weight: 500;
+        font-size: 13px;
+        cursor: pointer;
+        padding: 0 12px;
+        white-space: nowrap;
+    }
+    #splice-get-pack-cancel:hover {
+        background: rgba(0,0,0,0.28);
+    }
+    #splice-get-pack-btn.success #splice-get-pack-action {
+        padding: 0 13px 0 8px;
+        cursor: default;
+    }
+    #splice-get-pack-btn.success #splice-get-pack-action svg {
+        opacity: 1;
+    }
+
+    .spy-page-stepper {
+        display: flex;
+        align-items: stretch;
+        border-left: 1px solid rgba(255,255,255,0.22);
+        background: rgba(0,0,0,0.18);
+    }
+    .spy-page-stepper input {
+        width: 28px;
+        height: 100%;
+        border: none;
+        outline: none;
+        background: transparent;
+        color: #fff;
+        text-align: center;
+        font-size: 13px;
+        font-weight: 600;
+        -moz-appearance: textfield;
+        padding: 0;
+    }
+    .spy-page-stepper input::-webkit-outer-spin-button,
+    .spy-page-stepper input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    .spy-page-arrows {
+        display: flex;
+        flex-direction: column;
+        border-left: 1px solid rgba(255,255,255,0.18);
+        width: 18px;
+    }
+    .spy-page-arrows button {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        background: transparent;
+        color: rgba(255,255,255,0.8);
+        cursor: pointer;
+        padding: 0;
+        line-height: 0;
+    }
+    .spy-page-arrows button:hover {
+        background: rgba(255,255,255,0.12);
+        color: #fff;
+    }
+    .spy-page-arrows button:active {
+        background: rgba(255,255,255,0.2);
+    }
+    .spy-page-arrows button + button {
+        border-top: 1px solid rgba(255,255,255,0.18);
+    }
 `;
 
 			const styleEl = document.createElement('style');
@@ -265,7 +401,7 @@ fs.writeFileSync(p, html);
 				if (!btn) return;
 				const { state, hasFocus, ext, audioBuffer, buffer } = window.spyData;
 				const shouldShow = hasFocus && state !== SpyState.HIDDEN;
-				const isPackRunning = btnGet && btnGet.classList.contains('loading');
+				const isPackRunning = btnGet && (btnGet.classList.contains('loading') || btnGet.classList.contains('success'));
 				const allBtns = [btn, btnWav].filter(Boolean);
 
 				// Prefer WAV; fall back to MP3 only when WAV data is unavailable.
@@ -296,7 +432,7 @@ fs.writeFileSync(p, html);
 					if (state === SpyState.LOADING) activeBtn.classList.add('loading');
 					else if (state === SpyState.READY) {
 						activeBtn.classList.remove('loading');
-						activeBtn.title = `Download ${preferWav ? 'WAV' : (ext ? ext.toUpperCase() : 'MP3')}`;
+						activeBtn.title = preferWav ? 'Download selected as WAV' : `Download selected as ${ext ? ext.toUpperCase() : 'MP3'}`;
 					}
 				}
 			}
@@ -337,17 +473,132 @@ fs.writeFileSync(p, html);
 					renderButton();
 				}
 				const btnGet = document.getElementById('splice-get-pack-btn');
-				if (btnGet) {
-					const hasContainer = document.querySelector('sounds-pack-container, sounds-collection-container');
-					if (hasContainer || btnGet.classList.contains('loading')) {
-						btnGet.classList.add('visible');
-						if (!btnGet.classList.contains('loading')) {
-							const text = document.querySelector('sounds-collection-container') ? 'Get collection' : 'Get pack';
-							if (!btnGet.textContent.includes(text)) btnGet.innerHTML = `${ICON_DOWNLOAD} <span>${text}</span>`;
-						}
-					} else btnGet.classList.remove('visible');
+				const packWrapper = document.querySelector('.splice-get-pack-btn-wrapper');
+				if (btnGet && packWrapper) {
+					const showBulk = shouldShowBulkButton();
+					if (showBulk || btnGet.classList.contains('loading')) {
+						packWrapper.classList.add('visible');
+						if (!btnGet.classList.contains('loading')) syncPagesButtonLabel();
+					} else packWrapper.classList.remove('visible');
 				}
 			}, 200);
+
+			function isPackPage() {
+				return !!document.querySelector('sounds-pack-container');
+			}
+
+			function isCollectionPage() {
+				return !!document.querySelector('sounds-collection-container');
+			}
+
+			function isPackOrCollectionPage() {
+				return isPackPage() || isCollectionPage();
+			}
+
+			function hasPaginationControls() {
+				return !!(
+					document.querySelector('.page-select-link') ||
+					document.querySelector('[aria-label="Next Page"]') ||
+					document.querySelector('[aria-label="Previous Page"]') ||
+					document.querySelector('[data-qa="pagination.next-button"]') ||
+					document.querySelector('[data-qa="pagination.prev-button"]') ||
+					document.querySelector('[data-qa="next-button-event"]') ||
+					document.querySelector('[data-qa*="pagination"]')
+				);
+			}
+
+			function shouldShowBulkButton() {
+				return isPackOrCollectionPage() || hasPaginationControls();
+			}
+
+			function getDetectedTotalPages() {
+				const nums = Array.from(document.querySelectorAll('.page-select-link'))
+					.map(el => parseInt(el.textContent.trim(), 10))
+					.filter(n => Number.isFinite(n) && n > 0);
+				return nums.length ? Math.max(...nums) : 1;
+			}
+
+			function getPagesButtonLabel() {
+				if (isCollectionPage()) return 'Get Collection';
+				if (isPackPage()) return 'Get Pack';
+				return 'Pages';
+			}
+
+			function syncPagesButtonLabel() {
+				const action = document.getElementById('splice-get-pack-action');
+				const btnGet = document.getElementById('splice-get-pack-btn');
+				if (!action || !btnGet || btnGet.classList.contains('loading') || btnGet.classList.contains('success')) return;
+				const label = getPagesButtonLabel();
+				const span = action.querySelector('span');
+				if (!span || span.textContent !== label) {
+					action.innerHTML = `${ICON_DOWNLOAD} <span>${label}</span>`;
+				}
+				// Page count selector only on search-like pages, not Pack/Collection
+				if (isPackOrCollectionPage()) btnGet.classList.remove('has-stepper');
+				else btnGet.classList.add('has-stepper');
+			}
+
+			function getListedSampleTotal(maxPages) {
+				const scopes = [
+					document.querySelector('sounds-pack-container'),
+					document.querySelector('sounds-collection-container'),
+					document.querySelector('core-entity-header'),
+					document.querySelector('h1')?.parentElement
+				].filter(Boolean);
+				for (const scope of scopes) {
+					const m = (scope.textContent || '').match(/([\d,]+)\s*(?:sounds?|samples?|files?)/i);
+					if (m) {
+						const n = parseInt(m[1].replace(/,/g, ''), 10);
+						if (Number.isFinite(n) && n > 0) return n;
+					}
+				}
+				const rows = document.querySelectorAll('core-asset-list-row').length;
+				return Math.max(1, (maxPages || 1) * Math.max(rows, 1));
+			}
+
+			function setBulkProgress(done, total) {
+				const btn = document.getElementById('splice-get-pack-btn');
+				const action = document.getElementById('splice-get-pack-action');
+				if (!btn || !action) return;
+				btn.classList.add('loading');
+				btn.classList.remove('success', 'has-stepper');
+				action.innerHTML = `<span>Downloading ${done}/${total}</span>`;
+				let cancel = document.getElementById('splice-get-pack-cancel');
+				if (!cancel) {
+					cancel = document.createElement('button');
+					cancel.type = 'button';
+					cancel.id = 'splice-get-pack-cancel';
+					cancel.textContent = 'Cancel';
+					cancel.onclick = (e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						window.isGetPackCancelled = true;
+						cancel.textContent = 'Cancelling…';
+						cancel.disabled = true;
+					};
+					btn.appendChild(cancel);
+				}
+			}
+
+			function showBulkDownloaded() {
+				const btn = document.getElementById('splice-get-pack-btn');
+				const action = document.getElementById('splice-get-pack-action');
+				const cancel = document.getElementById('splice-get-pack-cancel');
+				if (cancel) cancel.remove();
+				if (!btn || !action) return;
+				btn.classList.remove('loading', 'has-stepper');
+				btn.classList.add('success');
+				action.innerHTML = `${ICON_CHECK} <span>Downloaded</span>`;
+			}
+
+			function restoreBulkButton() {
+				const btn = document.getElementById('splice-get-pack-btn');
+				const cancel = document.getElementById('splice-get-pack-cancel');
+				if (cancel) cancel.remove();
+				if (btn) btn.classList.remove('loading', 'success');
+				syncPagesButtonLabel();
+				renderButton();
+			}
 
 			function getFilenameFromRow(row) {
 				const el = row.querySelector('.filename');
@@ -365,17 +616,20 @@ fs.writeFileSync(p, html);
 
 			window.getPack = async function() {
 				const btn = document.getElementById('splice-get-pack-btn');
+				const action = document.getElementById('splice-get-pack-action');
 				const pageInput = document.getElementById('splice-get-pack-pages');
-				if (!btn) return;
-				if (btn.classList.contains('loading')) { window.isGetPackCancelled = true; return; }
-				
-				const maxPages = pageInput ? parseInt(pageInput.value, 10) || 1 : 1;
-				const packName = getPackName();
+				if (!btn || !action) return;
+				if (btn.classList.contains('loading') || btn.classList.contains('success')) return;
 
-				const originalHtml = btn.innerHTML;
-				btn.classList.add('loading');
-				btn.innerHTML = `<div class="spy-spinner"></div> <span style="margin-left:5px">Cancel</span>`;
+				const autoAllPages = isPackOrCollectionPage();
+				const selectedCount = pageInput ? parseInt(pageInput.value, 10) || 1 : 1;
+				let maxPages = autoAllPages ? getDetectedTotalPages() : selectedCount;
+				const packName = getPackName();
+				let done = 0;
+				let total = getListedSampleTotal(maxPages);
+
 				window.isGetPackCancelled = false;
+				setBulkProgress(done, total);
 				renderButton();
 				
 				try {
@@ -384,7 +638,29 @@ fs.writeFileSync(p, html);
 						return sel ? parseInt(sel.textContent.trim(), 10) : 1;
 					};
 
-					console.log(`[Spy] Starting batch download for ${maxPages} pages. Current page is ${getSelectedPage()}`);
+					const goToPage = async (expectedNextPage) => {
+						const targetLink = Array.from(document.querySelectorAll('.page-select-link'))
+							.find(l => l.textContent.trim() === expectedNextPage.toString());
+						if (targetLink) {
+							targetLink.click();
+						} else {
+							const nextBtn = document.querySelector('[aria-label="Next Page"], [data-qa="pagination.next-button"], [data-qa="next-button-event"]');
+							if (nextBtn && !nextBtn.disabled && !nextBtn.classList.contains('disabled') && nextBtn.getAttribute('aria-disabled') !== 'true') {
+								nextBtn.click();
+							} else {
+								return false;
+							}
+						}
+						let wait = 0;
+						while (getSelectedPage() !== expectedNextPage && wait < 20) {
+							await new Promise(r => setTimeout(r, 250));
+							wait++;
+						}
+						await new Promise(r => setTimeout(r, 2000));
+						return getSelectedPage() === expectedNextPage;
+					};
+
+					console.log(`[Spy] Starting batch download. autoAll=${autoAllPages}, pages=${maxPages}, total=${total}, current=${getSelectedPage()}`);
 
 					if (getSelectedPage() !== 1) {
 						console.log('[Spy] Not on page 1. Navigating to page 1...');
@@ -404,14 +680,22 @@ fs.writeFileSync(p, html);
 
 					let currentPage = 1;
 
-					while (currentPage <= maxPages && !window.isGetPackCancelled) {
-						console.log(`[Spy] Processing page ${currentPage}`);
+					while (!window.isGetPackCancelled) {
+						if (autoAllPages) maxPages = Math.max(maxPages, getDetectedTotalPages());
+						if (!autoAllPages && currentPage > maxPages) break;
+
+						console.log(`[Spy] Processing page ${currentPage}/${autoAllPages ? maxPages : selectedCount}`);
 						let rows = [];
 						let waitAttempts = 0;
 						while (rows.length === 0 && waitAttempts < 10) {
 							rows = Array.from(document.querySelectorAll('core-asset-list-row'));
 							if (rows.length === 0) await new Promise(r => setTimeout(r, 500));
 							waitAttempts++;
+						}
+
+						if (rows.length) {
+							total = Math.max(total, getListedSampleTotal(maxPages), maxPages * rows.length);
+							setBulkProgress(done, total);
 						}
 
 						for (const row of rows) {
@@ -445,42 +729,41 @@ fs.writeFileSync(p, html);
 								console.log(`[Spy] Saving batch WAV: ${fullPath}`);
 								const result = await ipcRenderer.invoke('antigravity-save-file', fullPath, wavBuffer);
 								if (!result || !result.success) console.error(`[Spy] Batch save failed for ${filename}:`, result);
+								else {
+									done++;
+									if (done > total) total = done;
+									setBulkProgress(done, total);
+								}
 							}
 						}
 
 						if (window.isGetPackCancelled) break;
 
-						if (currentPage < maxPages) {
-							const expectedNextPage = currentPage + 1;
-							console.log(`[Spy] Moving to page ${expectedNextPage}`);
-							
-							const targetLink = Array.from(document.querySelectorAll('.page-select-link')).find(l => l.textContent.trim() === expectedNextPage.toString());
-							
-							if (targetLink) {
-								targetLink.click();
-							} else {
-								const nextBtn = document.querySelector('[aria-label="Next Page"], [data-qa="pagination.next-button"], [data-qa="next-button-event"]');
-								if (nextBtn && !nextBtn.disabled && !nextBtn.classList.contains('disabled')) {
-									nextBtn.click();
-								} else {
-									console.log('[Spy] No more pages or next button disabled');
-									break;
-								}
-							}
-							
-							let wait = 0;
-							while (getSelectedPage() !== expectedNextPage && wait < 20) {
-								await new Promise(r => setTimeout(r, 250));
-								wait++;
-							}
-							await new Promise(r => setTimeout(r, 2000));
+						const expectedNextPage = currentPage + 1;
+						const nextBtn = document.querySelector('[aria-label="Next Page"], [data-qa="pagination.next-button"], [data-qa="next-button-event"]');
+						const nextEnabled = !!(nextBtn && !nextBtn.disabled && !nextBtn.classList.contains('disabled') && nextBtn.getAttribute('aria-disabled') !== 'true');
+						const detected = getDetectedTotalPages();
+						const shouldContinue = autoAllPages
+							? (expectedNextPage <= detected || nextEnabled)
+							: expectedNextPage <= maxPages;
+
+						if (!shouldContinue) break;
+
+						console.log(`[Spy] Moving to page ${expectedNextPage}`);
+						const moved = await goToPage(expectedNextPage);
+						if (!moved) {
+							console.log('[Spy] No more pages or next navigation failed');
+							break;
 						}
-						currentPage++;
+						currentPage = expectedNextPage;
+					}
+
+					if (!window.isGetPackCancelled) {
+						showBulkDownloaded();
+						await new Promise(r => setTimeout(r, 2000));
 					}
 				} finally {
-					btn.classList.remove('loading');
-					btn.innerHTML = originalHtml;
-					renderButton();
+					restoreBulkButton();
 					console.log('[Spy] Batch download finished or cancelled.');
 				}
 			};
@@ -608,50 +891,89 @@ fs.writeFileSync(p, html);
 				}
 			};
 
+			function clampPageCount() {
+				const pages = document.getElementById('splice-get-pack-pages');
+				if (!pages) return;
+				pages.value = String(Math.max(1, parseInt(pages.value, 10) || 1));
+			}
+
+			function adjustPageCount(delta) {
+				const pages = document.getElementById('splice-get-pack-pages');
+				if (!pages) return;
+				pages.value = String(Math.max(1, (parseInt(pages.value, 10) || 1) + delta));
+			}
+
 			function injectButton() {
 				if (document.getElementById('splice-spy-btn')) return;
 				const container = document.createElement('div');
 				container.id = 'splice-spy-container';
-				Object.assign(container.style, { position: 'fixed', bottom: '82px', right: '22px', zIndex: '999999', display: 'flex', gap: '8px', alignItems: 'center' });
+				Object.assign(container.style, { position: 'fixed', bottom: '82px', right: '22px', zIndex: '999999' });
 				
 				const infoBtn = document.createElement('button');
 				infoBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor"><rect x="3" y="3" width="12" height="12" rx="2" /><path d="M11 9h2M10 6h3M10 12h3M5 12l3-3-3-3" /></svg>';
-				Object.assign(infoBtn.style, { background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)' });
+				Object.assign(infoBtn.style, { background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center' });
 				infoBtn.onclick = () => require('electron').ipcRenderer.send('antigravity-toggle-devtools');
-
-				const btnGetPack = document.createElement('button');
-				btnGetPack.id = 'splice-get-pack-btn';
-				btnGetPack.onclick = () => window.getPack();
 
 				const btnWav = document.createElement('button');
 				btnWav.id = 'splice-spy-btn-wav';
-				btnWav.className = 'spy-btn-class';
-				btnWav.style.backgroundColor = '#8B5CF6'; // Purple for WAV
-				btnWav.innerHTML = `${ICON_DOWNLOAD} <span>WAV</span> <div class="spy-spinner"></div>`;
+				btnWav.className = 'spy-btn-class spy-d-none';
+				btnWav.style.backgroundColor = '#8B5CF6';
+				btnWav.innerHTML = `${ICON_DOWNLOAD} <span>Selected</span> <div class="spy-spinner"></div>`;
 				btnWav.onclick = () => window.downloadLastAudioWav();
 
 				const btn = document.createElement('button');
 				btn.id = 'splice-spy-btn';
-				btn.className = 'spy-btn-class';
-				btn.innerHTML = `${ICON_DOWNLOAD} <span>MP3</span> <div class="spy-spinner"></div>`;
+				btn.className = 'spy-btn-class spy-d-none';
+				btn.innerHTML = `${ICON_DOWNLOAD} <span>Selected</span> <div class="spy-spinner"></div>`;
 				btn.onclick = () => window.downloadLastAudio();
 
 				const wrapper = document.createElement('div');
 				wrapper.className = 'splice-get-pack-btn-wrapper';
-				
+
+				const packBtn = document.createElement('div');
+				packBtn.id = 'splice-get-pack-btn';
+
+				const action = document.createElement('button');
+				action.type = 'button';
+				action.id = 'splice-get-pack-action';
+				action.innerHTML = `${ICON_DOWNLOAD} <span>Pages</span>`;
+				action.onclick = () => window.getPack();
+
+				const stepper = document.createElement('div');
+				stepper.className = 'spy-page-stepper';
+				stepper.title = 'Pages to download';
+
 				const pageInput = document.createElement('input');
 				pageInput.type = 'number';
 				pageInput.id = 'splice-get-pack-pages';
 				pageInput.value = '1';
 				pageInput.min = '1';
-				pageInput.style.cssText = 'width: 40px; height: 32px; text-align: center; border: 1px solid rgba(255,255,255,0.2); border-radius: 5px; background: rgba(0,0,0,0.5); color: #fff; margin-right: 4px; pointer-events: auto; outline: none; font-size: 14px;';
-				pageInput.title = 'Pages to download';
+				pageInput.addEventListener('change', clampPageCount);
+				pageInput.addEventListener('blur', clampPageCount);
 
-				wrapper.appendChild(pageInput);
-				wrapper.appendChild(btnGetPack);
+				const arrows = document.createElement('div');
+				arrows.className = 'spy-page-arrows';
+
+				const upBtn = document.createElement('button');
+				upBtn.type = 'button';
+				upBtn.setAttribute('aria-label', 'Increase pages');
+				upBtn.innerHTML = ICON_CHEVRON_UP;
+				upBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); adjustPageCount(1); };
+
+				const downBtn = document.createElement('button');
+				downBtn.type = 'button';
+				downBtn.setAttribute('aria-label', 'Decrease pages');
+				downBtn.innerHTML = ICON_CHEVRON_DOWN;
+				downBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); adjustPageCount(-1); };
+
+				arrows.append(upBtn, downBtn);
+				stepper.append(pageInput, arrows);
+				packBtn.append(action, stepper);
+				wrapper.appendChild(packBtn);
 
 				container.append(wrapper, btn, btnWav, infoBtn);
 				document.body.appendChild(container);
+				renderButton();
 
 				require('electron').ipcRenderer.on('antigravity-devtools-state', (e, open) => {
 					infoBtn.style.color = open ? '#aaff00' : 'rgba(255,255,255,0.5)';
@@ -692,5 +1014,12 @@ EOF
 fi
 
 echo -e "\n${GREEN}Modification Complete!${NC}"
-echo -e "${YELLOW}Please restart Splice to see the changes.${NC}"
 echo -e "${CYAN}Note: Your original app.asar has been renamed to app.asar.bak for safety.${NC}"
+
+if [ "$REOPEN_SPLICE" = "1" ] && [[ "$TARGET_PATH" == *.app ]]; then
+    echo -e "${CYAN}Reopening Splice...${NC}"
+    open "$TARGET_PATH"
+    echo -e "${GREEN}✓ Splice relaunched${NC}"
+else
+    echo -e "${YELLOW}Please restart Splice to see the changes.${NC}"
+fi
